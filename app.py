@@ -1,5 +1,6 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QTabWidget
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
+from db import init_db
 from widgets import LogForm, SessionHistoryWidget
 
 
@@ -9,7 +10,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Immersion Tracker")
         self.setMinimumSize(600, 400)
 
-        # --- Tab Container ---
+        # --- Central Widget: Tab Container ---
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
@@ -25,6 +26,8 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    init_db()
+
     app = QApplication([])
     app.setStyle("Fusion")
 
