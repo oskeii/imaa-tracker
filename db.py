@@ -1,4 +1,4 @@
-"""DATABASE SCHEMA VERSION 0.1.0"""
+"""DATABASE SCHEMA VERSION 0.1.1"""
 import sqlite3
 
 DB_NAME = "imaa_tracker.db"
@@ -25,10 +25,10 @@ ENUMS = {
     ],
     "ACTIVITY_TYPES": ["reading", "listening", "both"],
     # "READING_DIRECTIONS": ["horizontal", "vertical"],
-    "STUDY_TYPES": ["anki", "textbook", "video", "grammar", "kanji", "vocab", "other"],
-    "TOPIC_AREAS": ["vocab", "kanji", "grammar", "reading_comp", "listening_comp", "other"],
     "RESOURCE_TYPES": ["textbook", "workbook", "drills", "video_course", "app", "mock_exam", "other"],
     "RESOURCE_LEVELS": ["N5", "N4", "N3", "N2", "N1", "beginner", "intermediate", "advanced"],
+    "STUDY_TYPES": ["anki", "textbook", "video", "grammar", "kanji", "vocab", "other"],
+    "TOPIC_AREAS": ["vocab", "kanji", "grammar", "reading_comp", "listening_comp", "other"],
     "GOAL_TYPES": ["recurring", "lifetime"],
     "GOAL_METRICS": [
         "duration_minutes",
@@ -110,6 +110,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         id				    INTEGER PRIMARY KEY,
         date			    TEXT NOT NULL,  -- ISO date YYYY-MM-DD
         title_id            INTEGER,    -- FK to titles (nullable for quick-log)
+        title_text          TEXT,   -- denormalized title for quick-log/display
         
         medium_type         TEXT NOT NULL,  -- denormalized
         activity_type       TEXT NOT NULL DEFAULT 'reading',    -- reading | listening | both
@@ -159,7 +160,7 @@ def _create_study_tables(cur: sqlite3.Cursor):
     CREATE TABLE IF NOT EXISTS resources (
         id              INTEGER PRIMARY KEY,
         name            TEXT NOT NULL,
-        resource_type   TEXT NOT NULL,  -- see RESOURCE_TYPE
+        resource_type   TEXT NOT NULL,  -- see RESOURCE_TYPES
         level           TEXT,   -- see RESOURCE_LEVELS
         cover_image     TEXT,   
         url             TEXT,   -- link if online resource
@@ -179,12 +180,12 @@ def _create_study_tables(cur: sqlite3.Cursor):
     
     duration_minutes    INTEGER,
     
+    topic_area          TEXT,   -- topic/area of focus studied. see TOPIC_AREAS
+    
     -- Anki specific
     anki_deck           TEXT,
     anki_reviews        INTEGER,
     anki_new_cards      INTEGER,
-    
-    topic_area          TEXT,   -- topic/area of focus studied. see TOPIC_AREAS
     
     notes               TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
@@ -240,15 +241,13 @@ def _create_goals_tables(cur: sqlite3.Cursor):
     -- ===== GOALS =====
     -- A goal is a rule: a metric, a target, and optionally a recurring period.
     -- "Read 15k characters per day" or "Reach 1 million characters total."
-    -- The app evaluates progress by querying session data — no stored counters.
     
     """
 
     query_goal_log = """
     -- ===== GOAL LOG =====
     -- One row per goal per completed period. Records whether the goal was
-    -- hit and the actual value reached. This is the history that powers
-    -- streaks, habit health, and the "did I hit my goal on Tuesday?" query.
+    -- hit and the actual value reached.
     --
     -- For recurring goals: period_date is the start of the period
     --   (the date itself for daily, Monday for weekly, 1st for monthly).
