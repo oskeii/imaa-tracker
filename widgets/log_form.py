@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QDateEdit, QComboBox, QLineEdit, QSpinBox, QTextEdit,
     QLabel, QPushButton, QMessageBox, QCompleter,
 )
-from PyQt6.QtCore import Qt, QDate, pyqtSignal
+from PyQt6.QtCore import Qt, QDate, pyqtSignal, QStringListModel
 import json
 
 from .stopwatch import Stopwatch
@@ -119,11 +119,10 @@ class LogForm(QWidget):
         # title - text field with auto-complete
         self.title_edit = QLineEdit()
         self.title_edit.setPlaceholderText("Start typing to search titles...")
-        # !TODO! auto-complete
+
         self.title_completer = QCompleter()
         self.title_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.title_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-
         self.title_edit.setCompleter(self.title_completer)
         form_layout.addRow("Title:", self.title_edit)
 
@@ -236,11 +235,11 @@ class LogForm(QWidget):
             ("urls", self._urls_label, self.urls_edit),
         ]
 
-    def _connect_signals(self):  # !TODO!
+    def _connect_signals(self):
         # Medium type changes --> show/hide relevant fields
         self.medium_combo.currentIndexChanged.connect(self._update_field_visibility)
         self.medium_combo.currentIndexChanged.connect(self._update_default_activity)
-        # self.medium_combo.currentIndexChanged.connect(self._refresh_completer)
+        self.medium_combo.currentIndexChanged.connect(self._refresh_completer)
 
         # Stopwatch stopped --> populate duration field
         self.stopwatch.sig_time_recorded.connect(self.duration_spin.setValue)
@@ -269,9 +268,13 @@ class LogForm(QWidget):
         if idx >= 0:
             self.activity_combo.setCurrentIndex(idx)
 
-    def _refresh_completer(self):  # !TODO!
+    def _refresh_completer(self):
         """Update the title autocomplete list based on selected medium type."""
-        pass
+        medium = self.medium_combo.currentData()
+        titles = repo.get_all_titles(medium_type=medium)
+        names = [t["name"] for t in titles]
+        model = QStringListModel(names)
+        self.title_completer.setModel(model)
 
     def _collect_form_data(self):
         """Validate form fields. Returns dict or None if invalid."""
@@ -287,7 +290,7 @@ class LogForm(QWidget):
             return None
 
         # get/create title entry in database
-        title_id = repo.get_or_create_title(title_text, medium)  # !TODO!
+        title_id = repo.get_or_create_title(title_text, medium)
 
         # Parse URLS
         urls_text = self.urls_edit.toPlainText().strip()
@@ -320,9 +323,9 @@ class LogForm(QWidget):
         data = self._collect_form_data()
         if data is None:
             return
-        # !! insert session into db + signal
+
         print(f"SUBMITTING NEW SESSION: {data}")
-        repo.add_immersion_session(**data)  # !TODO!
+        repo.add_immersion_session(**data)
         self.sig_session_logged.emit()
 
         self.statusbar_message("Session logged!")
@@ -332,9 +335,9 @@ class LogForm(QWidget):
         data = self._collect_form_data()
         if data is None:
             return
-        # !! insert session into db + signal
+
         print(f"SUBMITTING NEW SESSION: {data}")
-        repo.add_immersion_session(**data)  # !TODO!
+        repo.add_immersion_session(**data)
         self.sig_session_logged.emit()
 
         self.statusbar_message("Session logged!")

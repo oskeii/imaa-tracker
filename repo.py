@@ -2,7 +2,7 @@ import random
 import sqlite3
 from db import get_connection, DB_NAME, ENUMS
 
-TITLES_FIELDS = {
+TITLES_COLS = {
     "name": {"type": str},
     "medium_type": {
         "type": str,
@@ -17,7 +17,7 @@ TITLES_FIELDS = {
     "youtube_channel_id": {"type": str}, "youtube_url": {"type": str},
     "notes": {"type": str}
 }
-IMMERSION_SESSIONS_FIELDS = {
+IMMERSION_SESSIONS_COLS = {
     "date": {
         "type": str,  # ISO date YYYY-MM-DD
     },
@@ -40,7 +40,7 @@ IMMERSION_SESSIONS_FIELDS = {
     "urls_json": {"type": str},
     "notes": {"type": str}
 }
-RESOURCES_FIELDS = {
+RESOURCES_COLS = {
     "name": {"type": str},
     "resource_type": {
         "type": str,
@@ -54,7 +54,7 @@ RESOURCES_FIELDS = {
     "url": {"type": str},
     "notes": {"type": str}
 }
-STUDY_SESSIONS_FIELDS = {
+STUDY_SESSIONS_COLS = {
     "date": {"type": str},
     "study_type": {
         "type": str,
@@ -75,8 +75,18 @@ STUDY_SESSIONS_FIELDS = {
 # TITLES
 # __________________________________________
 def get_all_titles(medium_type: str) -> list[dict]:
-    """Fetch all titles, optionally filtered by medium type...?"""
-    pass
+    """Fetch all titles, optionally filtered by medium type."""
+    conn = get_connection()
+    if medium_type:
+        rows = conn.execute(
+            "SELECT * FROM titles WHERE medium_type = ? ORDER BY name",
+            (medium_type,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM titles ORDER BY name").fetchall()
+    conn.close()
+
+    return [dict(r) for r in rows]
 
 
 def add_title(name: str, medium_type: str, **kwargs) -> int:
@@ -84,28 +94,63 @@ def add_title(name: str, medium_type: str, **kwargs) -> int:
     pass
 
 
-def get_or_create_title(name: str, medium_type: str) -> int:  # !TODO!
+def get_or_create_title(name: str, medium_type: str) -> int:
     """Find an existing title by name & medium, else create new title. Returns ID"""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id FROM titles WHERE name = ? AND medium_type = ?",
+        (name, medium_type)
+    ).fetchone()
+    print("TITLE ROW?", row)
+    if row:
+        conn.close()
+        return row["id"]
 
-    title_id = random.randint(1, 50)
+    cur = conn.execute(
+        "INSERT INTO titles (name, medium_type) VALUES (?, ?)",
+        (name, medium_type)
+    )
+    conn.commit()
+    title_id = cur.lastrowid
+    conn.close()
+    print("TITLE CREATED:", title_id)
     return title_id
 
 
 # ------------------------------------------
 # IMMERSION SESSIONS
 # __________________________________________
-def add_immersion_session(date_str: str, medium_type: str, activity_type: str = "reading", **kwargs) -> int:  # !TODO!
+def add_immersion_session(date_str: str, medium_type: str, activity_type: str = "reading", **kwargs) -> int:
     """Insert a new immersion session. Returns the session ID."""
-    data = {'date_str': date_str, 'medium_type': medium_type, 'activity_type': activity_type, **kwargs}
+    data = {'date': date_str, 'medium_type': medium_type, 'activity_type': activity_type, **kwargs}
     print(f"RECEIVED NEW SESSION: {data}")
 
-    session_id = random.randint(1, 50)
+    col_str = ", ".join(IMMERSION_SESSIONS_COLS.keys())
+    placeholders = ", ".join(f":{_}" for _ in IMMERSION_SESSIONS_COLS.keys())
+    sql = f"""
+        INSERT INTO immersion_sessions
+        ({col_str})
+        VALUES ({placeholders})
+    """
+
+    conn = get_connection()
+    cur = conn.execute(sql, data)
+    conn.commit()
+    session_id = cur.lastrowid
+    conn.close()
     return session_id
 
 
 def get_immersion_sessions(limit: int = 200, offset: int = 0) -> list[dict]:
     """Fetch immersion sessions with optional filters."""
-    pass
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM immersion_sessions ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+        (limit, offset)
+    ).fetchall()
+
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # ------------------------------------------

@@ -23,9 +23,7 @@ class MainWindow(QMainWindow):
 
         # --- Cross-tab communication ---
         # new session logged -> refresh session history table
-        self.log_form.sig_session_logged.connect(
-            lambda: print("New session logged. Refreshing session history table...")
-        )
+        self.log_form.sig_session_logged.connect(self.session_history.refresh)
 
         # --- Status bar ---
         self.statusBar().showMessage("Ready")
