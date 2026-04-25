@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 import json
 
+from .stopwatch import Stopwatch
 from db import ENUMS
 import repo
 
@@ -92,8 +93,12 @@ class LogForm(QWidget):
         main_layout = QVBoxLayout(self)
 
         # --- Stopwatch ---
-        self.label = QLabel("Stopwatch goes here")
-        main_layout.addWidget(self.label)
+        self.stopwatch = Stopwatch()
+        stopwatch_group = QGroupBox("Stopwatch")
+        sw_layout = QVBoxLayout(stopwatch_group)
+
+        sw_layout.addWidget(self.stopwatch)
+        main_layout.addWidget(stopwatch_group)
 
         # --- Form fields ---
         form_group = QGroupBox("Log Session")
@@ -238,6 +243,7 @@ class LogForm(QWidget):
         # self.medium_combo.currentIndexChanged.connect(self._refresh_completer)
 
         # Stopwatch stopped --> populate duration field
+        self.stopwatch.sig_time_recorded.connect(self.duration_spin.setValue)
 
         # Button actions
         self.log_btn.clicked.connect(self._submit)
@@ -353,6 +359,7 @@ class LogForm(QWidget):
         self.ep_name_edit.clear()
         self.urls_edit.clear()
         self.notes_edit.clear()
+        self.stopwatch.reset()
 
     def statusbar_message(self, msg: str):
         """Show a message on main window's status bar."""
