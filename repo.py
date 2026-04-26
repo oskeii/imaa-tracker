@@ -141,17 +141,48 @@ def add_immersion_session(date_str: str, medium_type: str, activity_type: str = 
     return session_id
 
 
-def get_immersion_sessions(limit: int = 200, offset: int = 0) -> list[dict]:
+def get_immersion_sessions(
+        start_date: str = None,
+        end_date: str = None,
+        medium_type: str = None,
+        activity_type: str = None,
+        title_id: int = None,
+        limit: int = 200, offset: int = 0
+) -> list[dict]:
     """Fetch immersion sessions with optional filters."""
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM immersion_sessions ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
-        (limit, offset)
-    ).fetchall()
+    sql = "SELECT * FROM immersion_sessions WHERE 1=1"
+    params = []
 
+    if start_date:
+        sql += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        sql += " AND date <= ?"
+        params.append(end_date)
+    if medium_type:
+        sql += " AND medium_type = ?"
+        params.append(medium_type)
+    if activity_type:
+        sql += " AND activity_type = ?"
+        params.append(activity_type)
+    if title_id:
+        sql += " AND title_id = ?"
+        params.append(title_id)
+
+    sql += " ORDER BY date DESC, id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
+
+def delete_immersion_session(session_id: int) -> None:
+    conn = get_connection()
+    conn.execute("DELETE FROM immersion_sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    conn.close()
 
 # ------------------------------------------
 # RESOURCES

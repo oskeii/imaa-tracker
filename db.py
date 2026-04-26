@@ -41,6 +41,17 @@ ENUMS = {
 }
 
 
+def format_minutes(minutes: int) -> str:
+    """Format minutes as H:MM or '0 min'"""
+    if minutes == 0:
+        return "0 min"
+    # if minutes < 60:
+    #     return f"{minutes} min"
+    h = int(minutes // 60)
+    m = int(minutes % 60)
+    return f"{h}:{m:02}"
+
+
 def get_connection(db_path=DB_NAME) -> sqlite3.Connection:
     try:
         conn = sqlite3.connect(str(db_path))
