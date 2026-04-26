@@ -1,4 +1,4 @@
-"""DATABASE SCHEMA VERSION 0.1.1"""
+"""DATABASE SCHEMA VERSION 0.2.0"""
 import sqlite3
 
 DB_NAME = "imaa_tracker.db"
@@ -72,7 +72,7 @@ def init_db(db_path=DB_NAME):
     try:
         # TITLES, IMMERSION SESSIONS
         _create_immersion_tables(cur)
-        # RESOURCES, STUDY SESSIONS, JLPT SCORES
+        # RESOURCES, STUDY SESSIONS, EXAM SCORES
         _create_study_tables(cur)
         # GOALS, GOAL LOG, MILESTONES
         _create_goals_tables(cur)
@@ -208,10 +208,10 @@ def _create_study_tables(cur: sqlite3.Cursor):
     CREATE INDEX IF NOT EXISTS idx_study_resource ON study_sessions(resource_id);
     """
 
-    query_jlpt_scores = """
-    -- ===== JLPT SCORES =====
+    query_exam_scores = """
+    -- ===== EXAM SCORES =====
     -- Mock exam results. One row per exam sitting.
-    CREATE TABLE IF NOT EXISTS jlpt_scores (
+    CREATE TABLE IF NOT EXISTS exam_scores (
         id              INTEGER PRIMARY KEY,
         date            TEXT NOT NULL,
         level           TEXT NOT NULL,  -- N5 | N4 | N3 | N2 | N1
@@ -229,8 +229,8 @@ def _create_study_tables(cur: sqlite3.Cursor):
         
         FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE SET NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_jlpt_date ON jlpt_scores(date);
-    CREATE INDEX IF NOT EXISTS idx_jlpt_level ON jlpt_scores(level);
+    CREATE INDEX IF NOT EXISTS idx_exam_date ON exam_scores(date);
+    CREATE INDEX IF NOT EXISTS idx_exam_level ON exam_scores(level);
     """
 
     try:
@@ -240,8 +240,8 @@ def _create_study_tables(cur: sqlite3.Cursor):
         cur.executescript(query_study_sessions)
         print("'Study Sessions' table was created!")
 
-        cur.executescript(query_jlpt_scores)
-        print("'JLPT Scores' table was created!")
+        cur.executescript(query_exam_scores)
+        print("'Exam Scores' table was created!")
     except Exception as e:
         print(f"Error: {e}")
         raise
