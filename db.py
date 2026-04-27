@@ -288,7 +288,7 @@ def _create_goals_tables(cur: sqlite3.Cursor):
         period_date     TEXT NOT NULL,      -- start of the period (YYYY-MM-DD)
         actual_value    INTEGER NOT NULL,
         target_value    INTEGER NOT NULL,   -- snapshot of target value
-        is_achieved     BOOLEAN NOT NULL CHECK (is_achieved IN (0,1),
+        is_achieved     BOOLEAN NOT NULL CHECK (is_achieved IN (0,1)),
         created_at      TEXT NOT NULL DEFAULT (datetime('now')),
         
         FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE

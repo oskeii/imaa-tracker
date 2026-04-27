@@ -124,35 +124,35 @@ class SessionHistoryWidget(QWidget):
         filter_layout.addWidget(self.refresh_btn)
         filter_layout.addStretch()
 
-        self.delete_btn = QPushButton("Delete")
+        self.delete_btn = QPushButton("Delete Selected")
         self.delete_btn.setEnabled(False)
         filter_layout.addWidget(self.delete_btn)
 
         layout.addLayout(filter_layout)
 
         # --- Table view ---
-        self.tabel_view = QTableView()
+        self.table_view = QTableView()
         self.model = SessionTableModel()
-        self.tabel_view.setModel(self.model)
+        self.table_view.setModel(self.model)
 
         # configure view
-        self.tabel_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.tabel_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.tabel_view.setAlternatingRowColors(True)
-        self.tabel_view.setSortingEnabled(False)  # sorting vie SQL
+        self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table_view.setAlternatingRowColors(True)
+        self.table_view.setSortingEnabled(False)  # sorting vie SQL
         # set Title column stretch # !!
-        # header = self.tabel_view.horizontalHeader()
+        # header = self.table_view.horizontalHeader()
         # header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
 
-        layout.addWidget(self.tabel_view)
+        layout.addWidget(self.table_view)
 
     def _connect_signals(self):
         self.refresh_btn.clicked.connect(self.refresh)
         self.delete_btn.clicked.connect(self.delete_selected)
 
-        self.tabel_view.selectionModel().selectionChanged.connect(
+        self.table_view.selectionModel().selectionChanged.connect(
             lambda: self.delete_btn.setEnabled(
-                bool(self.tabel_view.selectionModel().selectedRows())
+                bool(self.table_view.selectionModel().selectedRows())
             )
         )
 
@@ -187,7 +187,7 @@ class SessionHistoryWidget(QWidget):
 
     def delete_selected(self):
         """Delete session of the currently selected row."""
-        rows = self.tabel_view.selectionModel().selectedRows()
+        rows = self.table_view.selectionModel().selectedRows()
         if not rows:
             return
         row = rows[0].row()

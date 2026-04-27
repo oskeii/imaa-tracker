@@ -124,6 +124,7 @@ class LogForm(QWidget):
         self.title_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.title_completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.title_edit.setCompleter(self.title_completer)
+        self.title_edit.focusInEvent = self._on_title_focus
         form_layout.addRow("Title:", self.title_edit)
 
         # activity type
@@ -276,6 +277,11 @@ class LogForm(QWidget):
         model = QStringListModel(names)
         self.title_completer.setModel(model)
 
+    def _on_title_focus(self, event):
+        QLineEdit.focusInEvent(self.title_edit, event)
+        self.title_completer.setCompletionPrefix(self.title_edit.text())
+        self.title_completer.complete()
+
     def _collect_form_data(self):
         """Validate form fields. Returns dict or None if invalid."""
         medium = self.medium_combo.currentData()
@@ -353,10 +359,10 @@ class LogForm(QWidget):
             self.medium_combo.setCurrentIndex(0)
         self.title_edit.clear()
         self.duration_spin.setValue(0)
-        self.char_spin.clear()
-        self.page_spin.clear()
-        self.episode_spin.clear()
-        self.direction_combo.clear()
+        self.char_spin.setValue(0)
+        self.page_spin.setValue(0)
+        self.episode_spin.setValue(0)
+        self.direction_combo.setCurrentIndex(0)
         self.volume_edit.clear()
         self.chapter_edit.clear()
         self.ep_name_edit.clear()
