@@ -1,4 +1,4 @@
-"""DATABASE SCHEMA VERSION 0.2.0"""
+"""DATABASE SCHEMA VERSION 1.0.0"""
 import sqlite3
 
 DB_NAME = "imaa_tracker.db"
@@ -251,8 +251,27 @@ def _create_goals_tables(cur: sqlite3.Cursor):
     query_goals = """
     -- ===== GOALS =====
     -- A goal is a rule: a metric, a target, and optionally a recurring period.
-    -- "Read 15k characters per day" or "Reach 1 million characters total."
-    
+    -- e.g. "Read 15k characters per day" or "Reach 1 million characters total."
+    CREATE TABLE IF NOT EXISTS goals (
+        id              INTEGER PRIMARY KEY,
+        name            TEXT NOT NULL,      -- e.g. "Daily reading goal", "300 immersion hours", "200 listening hours"
+        goal_type       TEXT NOT NULL,      -- recurring | lifetime
+        metric          TEXT NOT NULL,      -- see METRIC_TYPES
+        target_value    INTEGER NOT NULL,
+        period          TEXT,               -- daily | weekly | monthly (null for lifetime goal)
+        
+        -- Optional filters
+        medium_type     TEXT,   -- null = any medium
+        activity_type   TEXT,   -- null = any activity
+        
+        -- Habit health window (for recurring goals)
+        health_window_days  INTEGER DEFAULT 60,     -- health percentage calculated based on  the last N days
+        
+        is_active       BOOLEAN NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+        achieved_at     TEXT,       -- for lifetime goal (ISO datetime)
+        notes           TEXT,
+        created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     """
 
     query_goal_log = """
@@ -263,7 +282,20 @@ def _create_goals_tables(cur: sqlite3.Cursor):
     -- For recurring goals: period_date is the start of the period
     --   (the date itself for daily, Monday for weekly, 1st for monthly).
     -- For lifetime goals: one row created when achieved.
-    
+    CREATE TABLE IF NOT EXISTS goal_log (
+        id              INTEGER PRIMARY KEY,
+        goal_id         INTEGER NOT NULL,
+        period_date     TEXT NOT NULL,      -- start of the period (YYYY-MM-DD)
+        actual_value    INTEGER NOT NULL,
+        target_value    INTEGER NOT NULL,   -- snapshot of target value
+        is_achieved     BOOLEAN NOT NULL CHECK (is_achieved IN (0,1),
+        created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+        
+        FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_goallog_goal ON goal_log(goal_id);
+    CREATE INDEX IF NOT EXISTS idx_goallog_date ON goal_log(period_date);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_goallog_unique ON goal_log(goal_id, period_date);
     """
 
     query_milestones = """
@@ -271,7 +303,41 @@ def _create_goals_tables(cur: sqlite3.Cursor):
     -- A milestone is an event: something notable that happened at a point in time.
     -- Can be manually created ("Finished my first novel") or auto-generated
     -- when a lifetime goal is achieved.
+    CREATE TABLE IF NOT EXISTS milestones (
+        id              INTEGER PRIMARY KEY,
+        title           TEXT NOT NULL,
+        date            TEXT NOT NULL,
+        goal_id         INTEGER,        -- nullable FK
+        
+        -- snapshot of the metric
+        metric          TEXT,
+        metric_value    INTEGER,
+        
+        -- Filters used to traceback contributing sessions
+        -- Stored as JSON to reconstruct query
+        -- e.g. {"medium_type": "light_novel", "start_date": "2024-01-01", "title_id": 15}
+        filter_json     TEXT,
+        
+        notes           TEXT,
+        created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+        
+        FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_milestones_date ON milestones(date);
     """
+
+    try:
+        cur.executescript(query_goals)
+        print("'Goals' table was created!")
+
+        cur.executescript(query_goal_log)
+        print("'Goal Log' table was created!")
+
+        cur.executescript(query_milestones)
+        print("'Milestones' table was created!")
+    except Exception as e:
+        print(f"Error: {e}")
+        raise
 
 
 if __name__ == "__main__":
