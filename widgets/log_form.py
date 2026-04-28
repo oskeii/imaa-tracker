@@ -259,6 +259,14 @@ class LogForm(QWidget):
             show_field = key in visible
             label.setVisible(show_field)
             field.setVisible(show_field)
+            # Reset values of hidden fields
+            if not show_field:
+                if isinstance(field, QSpinBox):
+                    field.setValue(0)
+                elif isinstance(field, QComboBox):
+                    field.setCurrentIndex(0)
+                else:
+                    field.clear()
 
     def _update_default_activity(self):
         """Set a relevant default activity type based on selected medium type."""
@@ -279,7 +287,7 @@ class LogForm(QWidget):
 
     def _on_title_focus(self, event):
         QLineEdit.focusInEvent(self.title_edit, event)
-        self.title_completer.setCompletionPrefix(self.title_edit.text())
+        self.title_completer.setCompletionPrefix(self.title_edit.text() or "")
         self.title_completer.complete()
 
     def _collect_form_data(self):
