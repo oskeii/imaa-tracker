@@ -74,7 +74,7 @@ STUDY_SESSIONS_COLS = {
 # ------------------------------------------
 # TITLES
 # __________________________________________
-def get_all_titles(medium_type: str) -> list[dict]:
+def get_all_titles(medium_type: str = None) -> list[dict]:
     """Fetch all titles, optionally filtered by medium type."""
     conn = get_connection()
     if medium_type:
@@ -91,7 +91,17 @@ def get_all_titles(medium_type: str) -> list[dict]:
 
 def add_title(name: str, medium_type: str, **kwargs) -> int:
     """Insert a new title. Returns the new title's ID."""
-    pass
+    data = {col: None for col in TITLES_COLS}
+    data.update({'name': name, 'medium_type': medium_type, **kwargs})
+    col_str = ", ".join(TITLES_COLS.keys())
+    placeholders = ", ".join(f":{_}" for _ in TITLES_COLS.keys())
+
+    conn = get_connection()
+    cur = conn.execute(f"INSERT INTO titles ({col_str}) VALUES ({placeholders})", data)
+    conn.commit()
+    title_id = cur.lastrowid
+    conn.close()
+    return title_id
 
 
 def get_or_create_title(name: str, medium_type: str) -> int:
@@ -120,9 +130,10 @@ def get_or_create_title(name: str, medium_type: str) -> int:
 # ------------------------------------------
 # IMMERSION SESSIONS
 # __________________________________________
-def add_immersion_session(date_str: str, medium_type: str, activity_type: str = "reading", **kwargs) -> int:
+def add_immersion_session(date_str: str, title_text: str, medium_type: str, activity_type: str = "reading", **kwargs) -> int:
     """Insert a new immersion session. Returns the session ID."""
-    data = {'date': date_str, 'medium_type': medium_type, 'activity_type': activity_type, **kwargs}
+    data = {col: None for col in IMMERSION_SESSIONS_COLS}
+    data.update({'date': date_str, 'title_text': title_text, 'medium_type': medium_type, 'activity_type': activity_type, **kwargs})
     print(f"RECEIVED NEW SESSION: {data}")
 
     col_str = ", ".join(IMMERSION_SESSIONS_COLS.keys())
