@@ -1,4 +1,4 @@
-"""DATABASE SCHEMA VERSION 1.0.0"""
+"""DATABASE SCHEMA VERSION 1.0.1"""
 import sqlite3
 
 DB_NAME = "imaa_tracker.db"
@@ -52,7 +52,9 @@ def format_minutes(minutes: int) -> str:
     return f"{h}:{m:02}"
 
 
-def get_connection(db_path=DB_NAME) -> sqlite3.Connection:
+def get_connection(db_path=None) -> sqlite3.Connection:
+    if db_path is None:
+        db_path = DB_NAME
     try:
         conn = sqlite3.connect(str(db_path))
         conn.execute("PRAGMA journal_mode=WAL")
@@ -65,7 +67,9 @@ def get_connection(db_path=DB_NAME) -> sqlite3.Connection:
         raise
 
 
-def init_db(db_path=DB_NAME):
+def init_db(db_path=None):
+    if db_path is None:
+        db_path = DB_NAME
     conn = get_connection(db_path)
     cur = conn.cursor()
 
@@ -121,7 +125,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         id				    INTEGER PRIMARY KEY,
         date			    TEXT NOT NULL,  -- ISO date YYYY-MM-DD
         title_id            INTEGER,    -- FK to titles (nullable for quick-log)
-        title_text          TEXT,   -- denormalized title for quick-log/display
+        title_text          TEXT NOT NULL,   -- denormalized title for quick-log/display
         
         medium_type         TEXT NOT NULL,  -- denormalized
         activity_type       TEXT NOT NULL DEFAULT 'reading',    -- reading | listening | both
