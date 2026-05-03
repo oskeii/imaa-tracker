@@ -174,8 +174,6 @@ class SessionHistoryWidget(QWidget):
         )
         self.model.load(sessions)
 
-        print("RECENT SESSIONS:\n", sessions)
-
         # Update summary
         total_min = sum(s.get("duration_minutes", 0) or 0 for s in sessions)
         total_char = sum(s.get("character_count", 0) or 0 for s in sessions)

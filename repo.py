@@ -1,6 +1,5 @@
-import random
-import sqlite3
-from db import get_connection, DB_NAME, ENUMS
+from db import get_connection, ENUMS
+from datetime import date, timedelta
 
 TITLES_COLS = {
     "name": {"type": str},
@@ -111,7 +110,6 @@ def get_or_create_title(name: str, medium_type: str) -> int:
         "SELECT id FROM titles WHERE name = ? AND medium_type = ?",
         (name, medium_type)
     ).fetchone()
-    print("TITLE ROW?", row)
     if row:
         conn.close()
         return row["id"]
@@ -195,6 +193,7 @@ def delete_immersion_session(session_id: int) -> None:
     conn.commit()
     conn.close()
 
+
 # ------------------------------------------
 # RESOURCES
 # __________________________________________
@@ -209,3 +208,90 @@ def add_resource(name: str, resource_type: str, **kwargs) -> int:
 def add_study_session(date_str: str, study_type: str, **kwargs) -> int:
     """Insert a new study session. Returns the session ID."""
     pass
+
+
+# ------------------------------------------
+# DASHBOARD QUERIES
+# __________________________________________
+def get_daily_summary(target_date: str = None) -> dict:
+    """Stats summary for a single day: total time, character count, sessions, and breakdown by activity
+    target_date (ISO string) set to today if not provided.
+    """
+    if target_date is None:
+        target_date = date.today().isoformat()
+    conn = get_connection()
+
+    totals_row = conn.execute("""
+        SELECT
+            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+            COALESCE(SUM(character_count), 0)   AS total_chars,
+            COUNT(*)                            AS session_count
+        FROM immersion_sessions
+        WHERE date = ?
+    """, (target_date,)).fetchone()
+
+    activity_rows = conn.execute("""
+        SELECT activity_type,
+            COALESCE(SUM(duration_minutes), 0) AS minutes
+        FROM immersion_sessions
+        WHERE date = ?
+        GROUP BY activity_type
+    """, (target_date,)).fetchall()
+
+    conn.close()
+    return {
+        "date": target_date,
+        "total_minutes": totals_row["total_minutes"],
+        "total_chars": totals_row["total_chars"],
+        "session_count": totals_row["session_count"],
+        "by_activity": {row["activity_type"]: row["minutes"] for row in activity_rows},
+    }
+
+
+def get_weekly_summary(week_of: str = None) -> dict:  # !TODO!
+    """
+    Stats summary for a given week, Monday start. (i.e. total time, character count, sessions, and breakdown by activity)
+    week_of (ISO string) can be any date within the target week. uses today's date if not provided
+    """
+    if week_of is None:
+        week_of = date.today()
+
+    return {
+        "week_start": "",
+        "week_end": "",
+        "total_minutes": 0,
+        "total_chars": 0,
+        "session_count": 0
+    }
+
+
+def get_alltime_totals() -> dict:
+    conn = get_connection()
+    row = conn.execute("""
+        SELECT
+            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+            COALESCE(SUM(character_count), 0)   AS total_chars,
+            COUNT(*)                            AS session_count,
+            MIN(date)                           AS first_session,
+            MAX(date)                           AS last_session,
+            COUNT(DISTINCT date)                AS active_days
+        FROM immersion_sessions
+    """).fetchone()
+    active_row = conn.execute("""
+        SELECT
+            COUNT(DISTINCT date) AS active_days
+        FROM immersion_sessions WHERE duration_minutes >= 30
+    """).fetchone()  # !TODO! TOTAL minutes across all sessions in a day must be greater than 30...
+    print("ACTIVE DAYS", dict(active_row))
+
+    # !TODO! i want {"novel": 4, "youtube":21, "anime":20,...}
+    titles_rows = conn.execute("""
+        SELECT
+            COUNT(DISTINCT title_id) AS title_count
+        FROM immersion_sessions
+        GROUP BY medium_type
+    """).fetchall()
+    print("TITLE COUNT BY MEDIUM:", [dict(row) for row in titles_rows])
+
+    conn.close()
+    return dict(row)
