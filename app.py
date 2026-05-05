@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
 from db import init_db
 from widgets import LogForm, SessionHistoryWidget, DashboardContainer
 from widgets.dashboard import DailySummaryCard, AllTimeTotalsCard
+from widgets.charts_mpl import TimeByMediumPieChart, TimeByMediumBarChart, ActivityRatioChart
 
 
 def create_dashboard() -> DashboardContainer:
@@ -12,6 +13,9 @@ def create_dashboard() -> DashboardContainer:
     dashboard = DashboardContainer()
     dashboard.add_card(DailySummaryCard())
     dashboard.add_card(AllTimeTotalsCard())
+
+    dashboard.add_card(TimeByMediumPieChart())
+    dashboard.add_card(ActivityRatioChart())
     return dashboard
 
 
@@ -19,7 +23,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Immersion Tracker")
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(600, 600)
 
         # --- Central Widget: Tab Container ---
         self.tabs = QTabWidget()
@@ -30,9 +34,9 @@ class MainWindow(QMainWindow):
         self.session_history = SessionHistoryWidget()
         self.dashboard = create_dashboard()
 
-        self.tabs.addTab(self.dashboard, "Dashboard")
         self.tabs.addTab(self.log_form, "Log Session")
         self.tabs.addTab(self.session_history, "History")
+        self.tabs.addTab(self.dashboard, "Dashboard")
 
         # --- Cross-tab communication ---
         # new session logged -> refresh session history table + dashboard

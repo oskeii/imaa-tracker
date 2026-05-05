@@ -277,21 +277,136 @@ def get_alltime_totals() -> dict:
             COUNT(DISTINCT date)                AS active_days
         FROM immersion_sessions
     """).fetchone()
-    active_row = conn.execute("""
-        SELECT
-            COUNT(DISTINCT date) AS active_days
-        FROM immersion_sessions WHERE duration_minutes >= 30
-    """).fetchone()  # !TODO! TOTAL minutes across all sessions in a day must be greater than 30...
-    print("ACTIVE DAYS", dict(active_row))
+    active_rows = conn.execute("""
+        SELECT date,
+            COALESCE(SUM(duration_minutes), 0)  AS daily_minutes
+        FROM immersion_sessions
+        GROUP BY date
+        HAVING daily_minutes >= 30
+    """).fetchall()
+    print(f"ACTIVE DAYS ({len(active_rows)}):", [dict(r) for r in active_rows])
 
-    # !TODO! i want {"novel": 4, "youtube":21, "anime":20,...}
     titles_rows = conn.execute("""
-        SELECT
+        SELECT medium_type,
             COUNT(DISTINCT title_id) AS title_count
         FROM immersion_sessions
-        GROUP BY medium_type
+        GROUP BY medium_type ORDER BY title_count DESC
     """).fetchall()
     print("TITLE COUNT BY MEDIUM:", [dict(row) for row in titles_rows])
 
     conn.close()
     return dict(row)
+
+
+def get_time_by_medium(start_date: str, end_date: str, activity: str = None) -> list[dict]:
+    """
+    Immersion time grouped by medium type
+    Returns: [{"medium_type": "novel", "total_minutes": 1234, "session_count": 62}, ...]
+    """
+    # !TODO! filter by activity
+    conn = get_connection()
+    sql = """
+        SELECT medium_type,
+            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+            COUNT(*)                            AS session_count
+        FROM immersion_sessions WHERE 1=1
+    """
+    params = []
+
+    if start_date:
+        sql += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        sql += " AND date <= ?"
+        params.append(end_date)
+    sql += " GROUP BY medium_type ORDER BY total_minutes DESC"
+
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_time_by_medium_monthly(start_date: str, end_date: str, activity: str = None) -> dict:
+    """
+    Immersion time by medium, grouped by month
+    Returns: {"2026-04": {"novel": 1234, "anime": 234,...}, "2026-05": {...}, ...}
+    """
+    # !TODO! filter by activity
+    conn = get_connection()
+    sql = """
+        SELECT strftime('%Y-%m', date) AS month,
+            medium_type,
+            COALESCE(SUM(duration_minutes), 0)  AS total_minutes
+        FROM immersion_sessions WHERE 1=1
+    """
+    params = []
+
+    if start_date:
+        sql += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        sql += " AND date <= ?"
+        params.append(end_date)
+    sql += " GROUP BY month, medium_type ORDER BY month DESC"
+
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    print("STACKED TIME BY MEDIUM:", [dict(r) for r in rows])
+
+    # pivot: convert rows into {month: {medium_a: X, medium_b: Y, medium_c: Z, ...}}
+    from collections import defaultdict
+    periods = defaultdict(lambda: {medium: 0 for medium in ENUMS["MEDIUM_TYPES"]})
+    for r in rows:
+        periods[r["month"]][r["medium_type"]] += r["total_minutes"]
+
+    print()
+    print(dict(periods))
+
+    return dict(periods)
+
+
+def get_activity_breakdown(start_date: str, end_date: str, group_by="month") -> dict:
+    """
+    Total minutes grouped by activity
+    Returns: {"2026-04": {"reading": 120, "listening": 80, "both": 30, "session_count": 40}, ... }
+    """
+    conn = get_connection()
+
+    if group_by == "week":
+        period_expr = "date(date, 'weekday 0', '-6 days')"
+    elif group_by == "month":
+        period_expr = "strftime('%Y-%m', date)"
+    else:
+        period_expr = "'all-time'"
+
+    sql = f"""
+        SELECT {period_expr} AS period, 
+            activity_type,
+            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+            COUNT(*)                            AS session_count
+        FROM immersion_sessions WHERE 1=1
+    """
+    params = []
+
+    if start_date:
+        sql += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        sql += " AND date <= ?"
+        params.append(end_date)
+    sql += " GROUP BY period, activity_type ORDER BY period"
+    rows = conn.execute(sql, params).fetchall()
+    print(f"ACTIVITY BREAKDOWN ({len(rows)}):", [dict(r) for r in rows])
+    conn.close()
+
+    # pivot: convert rows into {period: {reading: X, listening: Y, both: Z, session_count: 123}}
+    from collections import defaultdict
+    periods = defaultdict(lambda: {"reading": 0, "listening": 0, "both": 0, "session_count": 0})
+    for r in rows:
+        periods[r["period"]][r["activity_type"]] += r["total_minutes"]
+        periods[r["period"]]["session_count"] += r["session_count"]
+
+    print()
+    print(dict(periods))
+
+    return dict(periods)

@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QFrame, QLayout, QHBoxLayout, QVBoxLayout, QGridLayout,
+    QWidget, QFrame, QLayout, QHBoxLayout, QVBoxLayout, QGridLayout, QScrollArea,
     QLabel, QPushButton
 )
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -23,11 +23,15 @@ class DashboardFilters:
     def __init__(self):
         self.start_date: str = None
         self.end_date: str = None
+        self.medium_type: str = None
+        self.activity_type: str = None
 
     def to_dict(self) -> dict:
         return {
             "start_date": self.start_date,
-            "end_date": self.end_date
+            "end_date": self.end_date,
+            "medium_type": self.medium_type,
+            "activity_type": self.activity_type,
         }
 
 
@@ -86,10 +90,18 @@ class DashboardContainer(QWidget):
         filter_layout.addWidget(self._refresh_btn)
         main_layout.addLayout(filter_layout)
 
+        # Scrollable area
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         self._card_container = QWidget()
         self._card_layout = QVBoxLayout(self._card_container)
+        self._card_layout.setSpacing(12)
         self._card_layout.addStretch()
-        main_layout.addWidget(self._card_container)
+
+        self._scroll.setWidget(self._card_container)
+        main_layout.addWidget(self._scroll)
 
     def _connect_signals(self):
         self._refresh_btn.clicked.connect(self._on_refresh)
@@ -173,6 +185,7 @@ class AllTimeTotalsCard(DashboardCard):
         self._labels = {}
         grid = QGridLayout()
 
+        # !TODO! titles count by medium, and optionally only days with total_minutes > 30 are active days
         for i, (key, display) in enumerate([
             ("total_minutes", "Total Time"),
             ("total_chars", "Characters Read"),
