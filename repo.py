@@ -284,7 +284,7 @@ def get_alltime_totals() -> dict:
         GROUP BY date
         HAVING daily_minutes >= 30
     """).fetchall()
-    print(f"ACTIVE DAYS ({len(active_rows)}):", [dict(r) for r in active_rows])
+    # print(f"ACTIVE DAYS ({len(active_rows)}):", [dict(r) for r in active_rows])
 
     titles_rows = conn.execute("""
         SELECT medium_type,
@@ -396,7 +396,7 @@ def get_activity_breakdown(start_date: str, end_date: str, group_by="month") -> 
         params.append(end_date)
     sql += " GROUP BY period, activity_type ORDER BY period"
     rows = conn.execute(sql, params).fetchall()
-    print(f"ACTIVITY BREAKDOWN ({len(rows)}):", [dict(r) for r in rows])
+    # print(f"ACTIVITY BREAKDOWN ({len(rows)}):", [dict(r) for r in rows])
     conn.close()
 
     # pivot: convert rows into {period: {reading: X, listening: Y, both: Z, session_count: 123}}
@@ -406,7 +406,38 @@ def get_activity_breakdown(start_date: str, end_date: str, group_by="month") -> 
         periods[r["period"]][r["activity_type"]] += r["total_minutes"]
         periods[r["period"]]["session_count"] += r["session_count"]
 
-    print()
+    print(f"ACTIVITY BREAKDOWN ({len(periods)}):",)
     print(dict(periods))
 
     return dict(periods)
+
+
+def get_daily_totals(start_date: str, end_date: str) -> list[dict]:
+    """
+    Daily aggregates for time trend charts
+    Returns: [{"date": "2026-04-01", "total_minutes": 78, "total_chars": 3665, "session_count": 2}, ...]
+    """
+    conn = get_connection()
+    sql = """
+        SELECT date,
+            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+            COALESCE(SUM(character_count), 0)   AS total_chars,
+            COUNT(*)                            AS session_count
+        FROM immersion_sessions WHERE 1=1
+    """
+    params = []
+    if start_date:
+        params.append(start_date)
+        sql += " AND date >= ?"
+    if end_date:
+        params.append(end_date)
+        sql += " AND date <= ?"
+    sql += " GROUP BY date ORDER BY date"
+
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+
+
