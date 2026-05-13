@@ -7,6 +7,11 @@ from .dashboard import DashboardCard, DashboardFilters
 
 pg.setConfigOptions(antialias=True)
 
+def dates_to_timestamps(date_strings: list[str]) -> list[int]:
+    """Convert ISO date strings to UNIX timestamps for pyqtgraph axis"""
+    return [date.fromisoformat(d).toordinal() for d in date_strings]
+
+
 class DateAxisItem(pg.AxisItem):
     """
     Custom AxisItem class to display Unix timestamps as human-readable dates
@@ -104,8 +109,6 @@ class ImmersionTimeTrend(PgChartCard):
         p95 = total_hours.quantile(0.95)
         y_max_view = max(p95*1.3, 1.5)
 
-        print(x[1] - x[0])
-        print(x[2] - x[0])
         self.view_box.setLimits(
             xMin=x[0]-6, xMax=x[-1]+6,
             yMin=0, yMax=total_hours.max() * 1.1,
@@ -144,3 +147,66 @@ class ImmersionTimeTrend(PgChartCard):
             )
 
 
+class ReadingSpeedTrend(PgChartCard):
+    """
+    Reading speed (chars/hr) over time.
+    Scatter plot: reading speed per session
+    Line plot: rolling average trend
+
+    """
+    def __init__(self, parent=None):
+        super().__init__(title="Reading Speed Trend", parent=parent)
+        self.plot_widget.setLabel("left", "Chars/hr")
+
+    def _draw(self, filters: DashboardFilters):
+        import repo
+        import pandas as pd
+        import numpy as np
+
+        data = repo.get_reading_speed_data(filters.start_date, filters.end_date)
+        if not data:
+            return
+
+        df = pd.DataFrame(data)
+        # Compute derived metric
+        df["speed"] = df["character_count"] / (df["duration_minutes"] / 60)
+
+        # !! Filter extreme outliers
+        # q1, q3 = np.percentile(df["speed"], [0.25, 0.75])
+        # l_bound = q1 - ((q3-q1) * 1.5)
+        # u_bound = q3 + ((q3-q1) * 1.5)
+        # if (q3-q1) > 0:
+        #     df = df[(df["speed"] >= l_bound) &
+        #         (df["speed"] <= u_bound)]
+        # if df.empty:
+        #     return
+
+        x = dates_to_timestamps(df["date"].values)
+        # Adjust axis limits
+        p95 = df["speed"].quantile(0.95)
+        y_max_view = max(p95*1.5, 5000)
+
+        self.view_box.setLimits(
+            xMin=min(x)-14, xMax=max(x)+14,
+            yMin=0, yMax=df["speed"].max() * 1.1,
+            minYRange=50, minXRange=5,
+        )
+        self.plot_widget.setYRange(0, y_max_view)
+        self.plot_widget.addLegend()
+        # Scatter plot for individual sessions
+        has_direction = df["reading_direction"].notna().any()
+        self.plot_widget.plot(
+            x, df["speed"].values,
+            pen=None,
+            symbol="o", symbolSize=6,
+            symbolBrush="#5B8FF9"
+        )
+
+        # Rolling average trend line
+        if len(df) >= 5:
+            rolling = df["speed"].rolling(10, min_periods=2).mean()
+            self.plot_widget.plot(
+                x, rolling.values,
+                pen=pg.mkPen("#F6BD16", width=2.5),
+                name="10-session avg"
+            )

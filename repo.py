@@ -439,5 +439,27 @@ def get_daily_totals(start_date: str, end_date: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_reading_speed_data(start_date: str, end_date: str) -> list[dict]:
+    conn = get_connection()
+    sql = """
+        SELECT  date, title_text, title_id, medium_type, reading_direction,
+                duration_minutes, character_count
+        FROM immersion_sessions
+        WHERE character_count IS NOT NULL
+            AND character_count > 0
+            AND duration_minutes IS NOT NULL
+            AND duration_minutes > 0
+    """
+    params = []
+    if start_date:
+        params.append(start_date)
+        sql += " AND date >= ?"
+    if end_date:
+        params.append(end_date)
+        sql += " AND date <= ?"
+    sql += " ORDER BY date"
 
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
