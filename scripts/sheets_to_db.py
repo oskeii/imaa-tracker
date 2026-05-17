@@ -2,7 +2,7 @@
 Migrate data from Immersion_Log.xlsx into the SQLite database.
 
 Usage:
-    python sheets_to_db.py [path_to_immersion_log]
+    python -m sheets_to_db [path_to_immersion_log]
 """
 
 import sys
