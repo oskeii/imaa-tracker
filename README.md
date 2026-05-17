@@ -1,6 +1,8 @@
 # imaa-tracker
 
-![Dashboard](docs/screenshots/dashboard.png)
+<picture>
+    <img src="docs/screenshots/dashboard.png" width="500" alt="imaa-tracker dashboard tab"/>
+</picture>
 
 A desktop application for tracking Japanese language immersion and study.
 
