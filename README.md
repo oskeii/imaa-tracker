@@ -25,12 +25,16 @@ just the minutes.
   <tr>
     <td><img src="docs/screenshots/log-and-view-history.gif" width="300" alt="Session Log Form"/></td>
     <td><img src="docs/screenshots/stopwatch-log-fill.gif" width="300" alt="Session History Table"/></td>
-    <td><img src="docs/screenshots/filter-date-and-activity.gif" width="300" alt="Dashboard tab"/></td>
-    <td><img src="docs/screenshots/dashboard.gif" width="300" alt="Dashboard tab"/></td>
   </tr>
   <tr>
     <td align="center"><b>Log and view your sessions</b></td>
     <td align="center"><b>Stopwatch auto-fills Log Form</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/filter-date-and-activity.gif" width="300" alt="Dashboard tab"/></td>
+    <td><img src="docs/screenshots/dashboard.gif" width="300" alt="Dashboard tab"/></td>
+  </tr>
+  <tr>
     <td align="center"><b>Filter through your past logs</b></td>
     <td align="center"><b>View your stats</b></td>
   </tr>
