@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
-from . import DashboardFilters
-from .dashboard import DashboardCard
+from .dashboard import DashboardCard, DashboardFilters
 from db import ENUMS, format_minutes
 
 MEDIUM_COLORS = {

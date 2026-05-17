@@ -4,6 +4,7 @@ from db import init_db
 from widgets import LogForm, SessionHistoryWidget, DashboardContainer
 from widgets.dashboard import DailySummaryCard, AllTimeTotalsCard
 from widgets.charts_mpl import TimeByMediumPieChart, TimeByMediumBarChart, ActivityRatioChart
+from widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
 
 
 def create_dashboard() -> DashboardContainer:
@@ -16,6 +17,9 @@ def create_dashboard() -> DashboardContainer:
 
     dashboard.add_card(TimeByMediumPieChart())
     dashboard.add_card(ActivityRatioChart())
+
+    dashboard.add_card(ReadingSpeedTrend())
+    dashboard.add_card(ImmersionTimeTrend())
     return dashboard
 
 

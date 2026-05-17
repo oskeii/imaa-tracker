@@ -162,7 +162,7 @@ class DailySummaryCard(DashboardCard):
     def refresh(self, filters: DashboardFilters):
         import repo
         summary = repo.get_daily_summary()
-        print("DAILY SUMMARY:", summary)
+        # print("DAILY SUMMARY:", summary)
 
         self._time_label.setText(format_duration_str(summary["total_minutes"]))
         self._chars_label.setText(f'{summary["total_chars"]:,} chars')
