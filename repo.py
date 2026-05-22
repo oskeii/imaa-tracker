@@ -194,6 +194,82 @@ def delete_immersion_session(session_id: int) -> None:
     conn.close()
 
 
+def update_immersion_session(session_id: int, **fields) -> dict:
+    """
+    Update field(s) of a single immersion session.
+    Returns the updated session.
+    """
+    updates = {k: v for k, v in fields.items() if k in IMMERSION_SESSIONS_COLS}
+    print(f"UPDATING SESSION (ID:{session_id}):\n\t{updates}")
+    if not updates:
+        return {}
+
+    set_str = ", ".join(f"{k} = :{k}" for k in updates)
+    sql = f"""
+        UPDATE immersion_sessions
+        SET {set_str} 
+        WHERE id  = {session_id}
+    """
+
+    conn = get_connection()
+    row = conn.execute(sql, updates).fetchone()
+    conn.commit()
+    conn.close()
+    return dict(row)
+
+
+def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> dict:
+    """
+    Update multiple sessions with the same field values.
+    Returns number of rows updated, session IDs, and updated field values.
+    DO NOT pass title_id directly for bulk updates, unless certain it applies to every selected session.
+    """
+    results = {
+        "count": 0,
+        "sessions": [],
+        "fields": {}
+    }
+    updates = {k: v for k, v in fields.items() if k in IMMERSION_SESSIONS_COLS}
+    print(f"UPDATING SESSIONS: \nIDs:{session_ids} \nUPDATES: \n\t{updates}")
+    if not updates or not session_ids:
+        return results
+
+    set_str = ", ".join(f"{k} = :{k}" for k in updates)
+    id_str = ", ".join(str(i) for i in session_ids)
+    sql = f"""
+        UPDATE immersion_sessions
+        SET {set_str}
+        WHERE id  IN ({id_str})
+    """
+
+    conn = get_connection()
+    rows = conn.execute(sql, updates).fetchall()
+    conn.commit()
+    conn.close()
+
+    results["count"] = len(rows)
+    results["sessions"] = [r[0] for r in rows]
+    results["fields"] = updates
+    return results
+
+
+def bulk_delete_immersion_sessions(session_ids: list[int]) -> int:
+    """Delete multiple sessions. Returns count deleted."""
+    if not session_ids:
+        return 0
+
+    placeholders = ", ".join("?" for _ in session_ids)
+    conn = get_connection()
+    cur = conn.execute(
+        f"DELETE FROM immersion_sessions WHERE id IN ({placeholders})",
+        session_ids
+    )
+    conn.commit()
+    count = cur.rowcount
+    conn.close()
+    return count
+
+
 # ------------------------------------------
 # RESOURCES
 # __________________________________________

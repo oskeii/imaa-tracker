@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableView, QHeaderView,
+    QWidget, QVBoxLayout, QHBoxLayout, QTableView, QHeaderView, QMessageBox,
     QLabel, QDateEdit, QComboBox, QPushButton, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
-
+from .edit_session_dialog import EditSessionDialog
 from db import ENUMS, format_minutes
 import repo
 
@@ -19,6 +19,7 @@ COLUMNS = [
     ("Episodes",    "episode_count",    Qt.AlignmentFlag.AlignRight),
     ("Vol.",        "volume",           Qt.AlignmentFlag.AlignCenter),
     ("Ch.",         "chapter",          Qt.AlignmentFlag.AlignCenter),
+    ("Ep.",         "episode_name",          Qt.AlignmentFlag.AlignCenter),
 ]
 
 
@@ -73,6 +74,12 @@ class SessionTableModel(QAbstractTableModel):
             return self._sessions[row].get("id")
         return None
 
+    def get_session(self, row: int):
+        """Return full session data for a row."""
+        if 0 <= row < len(self._sessions):
+            return self._sessions[row]
+        return None
+
 
 class SessionHistoryWidget(QWidget):
     """
@@ -124,6 +131,10 @@ class SessionHistoryWidget(QWidget):
         filter_layout.addWidget(self.refresh_btn)
         filter_layout.addStretch()
 
+        self.edit_btn = QPushButton("Edit Selected")
+        self.edit_btn.setEnabled(False)
+        filter_layout.addWidget(self.edit_btn)
+
         self.delete_btn = QPushButton("Delete Selected")
         self.delete_btn.setEnabled(False)
         filter_layout.addWidget(self.delete_btn)
@@ -137,9 +148,9 @@ class SessionHistoryWidget(QWidget):
 
         # configure view
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table_view.setAlternatingRowColors(True)
-        self.table_view.setSortingEnabled(False)  # sorting vie SQL
+        self.table_view.setSortingEnabled(False)  # sorting via SQL
         # set Title column stretch # !!
         # header = self.table_view.horizontalHeader()
         # header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -149,12 +160,23 @@ class SessionHistoryWidget(QWidget):
     def _connect_signals(self):
         self.refresh_btn.clicked.connect(self.refresh)
         self.delete_btn.clicked.connect(self.delete_selected)
+        self.edit_btn.clicked.connect(self.edit_selected)
 
-        self.table_view.selectionModel().selectionChanged.connect(
-            lambda: self.delete_btn.setEnabled(
-                bool(self.table_view.selectionModel().selectedRows())
-            )
-        )
+        self.table_view.doubleClicked.connect(self._on_row_double_clicked)
+        self.table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
+
+    def _on_selection_changed(self):
+        n = len(self.table_view.selectionModel().selectedRows())
+        self.edit_btn.setEnabled(n > 0)
+        self.edit_btn.setText("Edit Selected" if n<=1 else f"Edit Selected ({n})")
+        self.delete_btn.setEnabled(n > 0)
+        self.delete_btn.setText("Delete Selected" if n<=1 else f"Deleted Selected ({n})")
+
+    def _on_row_double_clicked(self, index: QModelIndex):
+        session = self.model.get_session(index.row())
+        if session is None:
+            return
+        self._open_edit_dialog([session])
 
     def refresh(self):
         """Re-query the database with current filters and reload table."""
@@ -174,6 +196,12 @@ class SessionHistoryWidget(QWidget):
         )
         self.model.load(sessions)
 
+        # Reset buttons; selection is cleared
+        self.edit_btn.setEnabled(False)
+        self.edit_btn.setText("Edit Selected")
+        self.delete_btn.setEnabled(False)
+        self.delete_btn.setText("Delete Selected")
+
         # Update summary
         total_min = sum(s.get("duration_minutes", 0) or 0 for s in sessions)
         total_char = sum(s.get("character_count", 0) or 0 for s in sessions)
@@ -183,13 +211,47 @@ class SessionHistoryWidget(QWidget):
             f"{total_char:,} characters"
         )
 
+    def _get_selected_sessions(self) -> list[dict]:
+        """All session dicts for currently selected rows"""
+        sessions = []
+        rows = self.table_view.selectionModel().selectedRows()
+        for idx in rows:
+            s = self.model.get_session(idx.row())
+            if s is not None:
+                sessions.append(s)
+        return sessions
+
+    def edit_selected(self):
+        sessions = self._get_selected_sessions()
+        if not sessions:
+            return
+        self._open_edit_dialog(sessions)
+
+    def _open_edit_dialog(self, sessions: list[dict]):
+        from PyQt6.QtWidgets import QDialog
+        dlg = EditSessionDialog(sessions, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.refresh()
+
     def delete_selected(self):
         """Delete session of the currently selected row."""
-        rows = self.table_view.selectionModel().selectedRows()
-        if not rows:
+        sessions = self._get_selected_sessions()
+        if not sessions:
             return
-        row = rows[0].row()
-        session_id = self.model.get_session_id(row)
-        if session_id is not None:
-            repo.delete_immersion_session(session_id)
-            self.refresh()
+
+        n = len(sessions)
+        msg = (
+            f"Delete this session" if n == 1
+            else f"Delete {n} sessions? This can't be undone."
+        )
+        confirm = QMessageBox.question(
+            self, "Confirm Delete", msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            defaultButton=QMessageBox.StandardButton.No
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        ids = [s["id"] for s in sessions]
+        repo.bulk_delete_immersion_sessions(ids)
+        self.refresh()
