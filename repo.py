@@ -194,7 +194,7 @@ def delete_immersion_session(session_id: int) -> None:
     conn.close()
 
 
-def update_immersion_session(session_id: int, **fields) -> dict:
+def update_immersion_session(session_id: int, **fields) -> None:
     """
     Update field(s) of a single immersion session.
     Returns the updated session.
@@ -212,10 +212,9 @@ def update_immersion_session(session_id: int, **fields) -> dict:
     """
 
     conn = get_connection()
-    row = conn.execute(sql, updates).fetchone()
+    conn.execute(sql, updates)
     conn.commit()
     conn.close()
-    return dict(row)
 
 
 def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> dict:
