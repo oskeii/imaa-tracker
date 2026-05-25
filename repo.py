@@ -202,7 +202,7 @@ def update_immersion_session(session_id: int, **fields) -> None:
     updates = {k: v for k, v in fields.items() if k in IMMERSION_SESSIONS_COLS}
     print(f"UPDATING SESSION (ID:{session_id}):\n\t{updates}")
     if not updates:
-        return {}
+        return
 
     set_str = ", ".join(f"{k} = :{k}" for k in updates)
     sql = f"""
@@ -217,21 +217,16 @@ def update_immersion_session(session_id: int, **fields) -> None:
     conn.close()
 
 
-def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> dict:
+def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> int:
     """
     Update multiple sessions with the same field values.
-    Returns number of rows updated, session IDs, and updated field values.
+    Returns count updated.
     DO NOT pass title_id directly for bulk updates, unless certain it applies to every selected session.
     """
-    results = {
-        "count": 0,
-        "sessions": [],
-        "fields": {}
-    }
     updates = {k: v for k, v in fields.items() if k in IMMERSION_SESSIONS_COLS}
     print(f"UPDATING SESSIONS: \nIDs:{session_ids} \nUPDATES: \n\t{updates}")
     if not updates or not session_ids:
-        return results
+        return 0
 
     set_str = ", ".join(f"{k} = :{k}" for k in updates)
     id_str = ", ".join(str(i) for i in session_ids)
@@ -242,14 +237,11 @@ def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> dict:
     """
 
     conn = get_connection()
-    rows = conn.execute(sql, updates).fetchall()
+    cur = conn.execute(sql, updates)
+    count = cur.rowcount
     conn.commit()
     conn.close()
-
-    results["count"] = len(rows)
-    results["sessions"] = [r[0] for r in rows]
-    results["fields"] = updates
-    return results
+    return count
 
 
 def bulk_delete_immersion_sessions(session_ids: list[int]) -> int:
