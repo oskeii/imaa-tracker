@@ -95,7 +95,7 @@ imaa-tracker/
 
 ### Phase 2: UX Fixes & Enhanced Functionality
 - [ ] Dashboard snapshot export
-- [ ] Session editing
+- [x] Session editing
 - [ ] Dashboard filters
 - [ ] More charts
 - [ ] Write tests for dashboard features
