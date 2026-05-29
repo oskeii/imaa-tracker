@@ -19,6 +19,53 @@ MEDIUM_COLORS = {
 }
 
 
+def _group_small_slices(
+        data: list[dict],
+        value_key: str = "total_minutes",
+        label_key: str = "medium_type",
+        threshold: float = 0.05
+):
+    """
+    Merge entries below `threshold` (as a fraction of the total) into a single "other" row
+    Input Data: [{label_key: "novel", value_key: 1234,...}, ...]
+    Output Data: same structure, with smaller entries combined in "other"
+        [
+            {label_key: "novel", value_key: 1234,...},
+            ...,
+            {label_key: "other", value_key: 123,...}
+        ]
+    """
+    total = sum([r[value_key] for r in data])
+    if total == 0:
+        return data
+
+    cutoff = total * threshold
+    keepers, smalls = [], []
+    for row in data:
+        if row[value_key] >= cutoff:
+            keepers.append(row)
+        else:
+            smalls.append(row)
+
+    if smalls:
+        other_row = {label_key: "other", value_key: sum(r[value_key] for r in smalls)}
+        if "session_count" in smalls[0]:
+            other_row["session_count"] = sum(r.get("session_count", 0) for r in smalls)
+        keepers.append(other_row)
+    return keepers
+
+
+def _format_period_str(filters: DashboardFilters) -> str:
+    """Readable label for currently filtered period"""
+    if filters.start_date and filters.end_date:
+        return f"{filters.start_date} → {filters.end_date}"
+    if filters.start_date:
+        return f"Since {filters.start_date}"
+    if filters.end_date:
+        return f"Until {filters.end_date}"
+    return "All-time"
+
+
 class MplChartCard(DashboardCard):
     """
     Base class for matplotlib-based dashboard charts
@@ -63,34 +110,35 @@ class TimeByMediumPieChart(MplChartCard):
         data = repo.get_time_by_medium(filters.start_date, filters.end_date)
         print("TIME BY MEDIUM:", data)
         # [{"medium_type": "novel", "total_minutes": 1234, "session_count": 62}, ...]
-        # !TODO! handle scenarios with too many categories
 
         if not data:
             self.ax.text(0.5, 0.5, "No data",
                          ha="center", va="center",
                          transform=self.ax.transAxes)
             return
+        data = _group_small_slices(data)
 
         labels, values, colors = [], [], []
         for row in data:
             labels.append(row["medium_type"].replace("_", " ").title())
             values.append(row["total_minutes"])
-            colors.append(MEDIUM_COLORS.get(row["medium_type"], "#CCCCCC"))
+            colors.append(MEDIUM_COLORS.get(row["medium_type"], "#999999"))
 
         wedges, texts, autotexts = self.ax.pie(
             values,
             labels=labels,
             colors=colors,
             startangle=90,
-            autopct=lambda pct: f"{pct:.0f}%" if pct >= 5 else "",
+            autopct=lambda pct: f"{pct:.0f}%" if pct >= 4.5 else "",
             pctdistance=0.75
         )
 
         for t in autotexts:
             t.set_fontsize(9)
+            # t.set_color("white")
+            t.set_fontweight("bold")
 
-        # !TODO! add header for filtered time period
-        # self.ax.set_title(f"{filters.start_date} - {filters.end_date}")
+        self.ax.set_title(_format_period_str(filters))
 
 
 class TimeByMediumBarChart(MplChartCard):  # !TODO!
