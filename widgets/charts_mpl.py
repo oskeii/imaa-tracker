@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+import pandas as pd
 
 from .dashboard import DashboardCard, DashboardFilters
 from db import ENUMS, format_minutes
@@ -53,6 +54,42 @@ def _group_small_slices(
             other_row["session_count"] = sum(r.get("session_count", 0) for r in smalls)
         keepers.append(other_row)
     return keepers
+
+
+def _fill_missing_periods(data: dict, group_by: str, fill_keys: list[str]) -> dict:
+    """
+    Fill in missing periods between earliest and latest keys with zero-valued entries.
+    group_by:
+        "month" -> keys are expected as "YYYY-MM"
+        "week" -> keys are expected as "YYYY-MM-DD" anchored to Monday of that week
+        otherwise, returns data as-is
+    fill_keys: subdict keys that are to be defaulted to 0
+    """
+    if not data or group_by not in ("month", "week"):
+        return data
+
+    periods = sorted(data.keys())
+    start, end = periods[0], periods[-1]
+
+    if group_by == "month":
+        rng = pd.period_range(start=start, end=end, freq="M")
+        full_keys = [str(p) for p in rng]
+    else:  # "week"
+        rng = pd.date_range(start=start, end=end, freq="W-MON")
+        full_keys = [d.strftime("%Y-%m-%d") for d in rng]
+
+    filled = {}
+    for key in full_keys:
+        filled[key] = data[key] if key in data else {k: 0 for k in fill_keys}
+    return filled
+
+
+def _limit_recent_periods(data: dict, max_periods: int) -> dict:
+    """Keep only the N most recent periods. Expects sortable stable string keys"""
+    if len(data) <= max_periods:
+        return dict(sorted(data.items()))
+    sorted_keys = sorted(data.keys())[-max_periods:]
+    return {k: data[k] for k in sorted_keys}
 
 
 def _format_period_str(filters: DashboardFilters) -> str:
@@ -138,7 +175,7 @@ class TimeByMediumPieChart(MplChartCard):
             # t.set_color("white")
             t.set_fontweight("bold")
 
-        self.ax.set_title(_format_period_str(filters))
+        self.ax.set_title(_format_period_str(filters), fontsize=10)
 
 
 class TimeByMediumBarChart(MplChartCard):  # !TODO!
@@ -183,8 +220,10 @@ class ActivityRatioChart(MplChartCard):
         "listening": "#5B8FF9",
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, group_by="month", max_periods=12):
         super().__init__("Reading vs Listening", figsize=(8, 3.5), parent=parent)
+        self.group_by = group_by
+        self.max_periods = max_periods
 
     def _draw(self, filters: DashboardFilters):
         import repo
@@ -192,31 +231,51 @@ class ActivityRatioChart(MplChartCard):
         data = repo.get_activity_breakdown(
             start_date=filters.start_date,
             end_date=filters.end_date,
-            group_by="month"
+            group_by=self.group_by
         )
 
         if not data:
             self.ax.text(0.5, 0.5, "No data",
                          ha="center", va="center")
             return
-        # {period1: {reading: X, listening: Y, both: Z, session_count: 123}, period2: {...}}
-        periods = [period for period in data.keys()]
+        # data = {period1: {reading: X, listening: Y, both: Z, session_count: 123}, period2: {...}}
+        # Fill empty period gaps
+        data = _fill_missing_periods(
+            data,
+            group_by=self.group_by,
+            fill_keys=["reading", "listening", "both", "session_count"]
+        )
+        # Limit to 12 most recent periods
+        data = _limit_recent_periods(data, self.max_periods)
+
+        # Distribute "both" activity minutes 50/50 between reading/listening
+        adjusted = {}
+        for period, vals in data.items():
+            half_both = vals.get("both", 0) / 2
+            adjusted[period] = {
+                "reading": vals.get("reading", 0) + half_both,
+                "listening": vals.get("listening", 0) + half_both,
+            }
+
+        periods = list(adjusted.keys())
         x = range(len(periods))
-        bottom = [0] * len(periods)
+        bottom = np.zeros(len(periods))
 
-        # print("WHAT IS DATA VALUES??", data.values())
-
-        for i, activity in enumerate(["reading", "listening"]):
-            values = np.round(
-                [row.get(activity, 0)/60 for row in data.values()],  # convert to hours
-                decimals=2)
+        for activity in ["reading", "listening"]:
+            values = np.array(
+                [round(adjusted[p][activity] / 60, 2) for p in periods]  # minutes to hours
+            )
             color = self.ACTIVITY_COLORS.get(activity, "#CCC")
-            self.ax.bar(x, values, bottom=bottom,
-                        label=activity.capitalize(), color=color, width=0.5)
-            bottom = [b+v for b, v in zip(bottom, values)]
+            self.ax.bar(
+                x, values, bottom=bottom,
+                label=activity.capitalize(),
+                color=color,
+                width=0.5
+            )
+            bottom += values
 
             self.ax.set_xticks(x)
             self.ax.set_xticklabels(periods, rotation=45, ha="right", fontsize=8)
             self.ax.set_ylabel("Hours")
-            self.ax.legend(fontsize=8)
-            self.ax.set_title("Monthly activity ratio")
+            self.ax.legend(fontsize=8, loc="upper left")
+            self.ax.set_title("Monthly activity ratio", fontsize=10)
