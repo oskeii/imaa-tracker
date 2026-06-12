@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QHBoxLayout
 
 from db import init_db
 from widgets import LogForm, SessionHistoryWidget, DashboardContainer
@@ -12,8 +12,9 @@ def create_dashboard() -> DashboardContainer:
     Factory function that assembles the modular dashboard with all its cards
     """
     dashboard = DashboardContainer()
-    dashboard.add_card(DailySummaryCard())
-    dashboard.add_card(AllTimeTotalsCard())
+    # dashboard.add_card(DailySummaryCard())
+    # dashboard.add_card(AllTimeTotalsCard())
+    dashboard.add_cards_hbox(DailySummaryCard(), AllTimeTotalsCard())
 
     dashboard.add_card(TimeByMediumPieChart())
     dashboard.add_card(ActivityRatioChart())
@@ -38,9 +39,9 @@ class MainWindow(QMainWindow):
         self.session_history = SessionHistoryWidget()
         self.dashboard = create_dashboard()
 
+        self.tabs.addTab(self.dashboard, "Dashboard")
         self.tabs.addTab(self.log_form, "Log Session")
         self.tabs.addTab(self.session_history, "History")
-        self.tabs.addTab(self.dashboard, "Dashboard")
 
         # --- Cross-tab communication ---
         # new session logged -> refresh session history table + dashboard

@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import (
-    QWidget, QFrame, QLayout, QHBoxLayout, QVBoxLayout, QGridLayout, QScrollArea,
+    QWidget, QFrame, QLayout, QHBoxLayout, QVBoxLayout, QGridLayout, QScrollArea, QSizePolicy,
     QLabel, QPushButton
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt
+from datetime import date
 from db import ENUMS, format_minutes, format_duration_str
 
 
@@ -57,12 +58,13 @@ class DashboardCard(QFrame):
         self._title_label = QLabel(title)
         self._title_label.setStyleSheet("font-weight: bold; font-size: 16px;")
         self._layout.addWidget(self._title_label)
+        self._layout.addStretch()
 
     def add_content_widget(self, widget: QWidget):
-        self._layout.addWidget(widget)
+        self._layout.insertWidget(self._layout.count() - 1, widget)
 
     def add_content_layout(self, layout: QLayout):
-        self._layout.addLayout(layout)
+        self._layout.insertLayout(self._layout.count() - 1, layout)
 
     def refresh(self, filters: DashboardFilters):
         """Must be implemented by subclass. Called when data is updated or filters changed."""
@@ -112,6 +114,15 @@ class DashboardContainer(QWidget):
         self._card_layout.insertWidget(self._card_layout.count() - 1, card)
         card.refresh(self._filters)
 
+    def add_cards_hbox(self, *cards: DashboardCard):
+        hbox = QHBoxLayout()
+
+        self._card_layout.insertLayout(self._card_layout.count() - 1, hbox)
+        for c in cards:
+            self._cards.append(c)
+            hbox.addWidget(c)
+            c.refresh(self._filters)
+
     def _on_refresh(self):
         print("REFRESHING DASHBOARD....")
         for card in self._cards:
@@ -124,92 +135,199 @@ class DashboardContainer(QWidget):
 
 
 # SUMMARY CARDS
+class StatBlock(QWidget):
+    """
+    Secondary stat: a number stacked above a small muted label
+    """
+    def __init__(self, label: str, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+
+        self._value = QLabel("--")
+        self._value.setStyleSheet(
+            "font-size: 18px; font-weight: 600; color: palette(text);"
+        )
+        self._label = QLabel(label.upper())
+        self._label.setStyleSheet(
+            "font-size: 9px; letter-spacing: 1px; color: palette(mid);"
+        )
+
+        layout.addWidget(self._value)
+        layout.addWidget(self._label)
+
+    def set_value(self, value: str):
+        self._value.setText(value)
+
+
+class HeroStat(QWidget):
+    """
+    Primary "hero" stat: headline number of the card
+    (2x the size of a StatBlock)
+    """
+    def __init__(self, label: str, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        self._value = QLabel("--")
+        self._value.setStyleSheet(
+            "font-size: 34px; font-weight: 700px; color: palette(text);"
+        )
+        self._label = QLabel(label.upper())
+        self._label.setStyleSheet(
+            "font-size: 10px; letter-spacing: 1.5px; color: palette(mid);"
+        )
+        layout.addWidget(self._value)
+        layout.addWidget(self._label)
+
+    def set_value(self, value: str):
+        self._value.setText(value)
+
+
+def _make_separator() -> QFrame:
+    """A thin horizontal divider between card sections"""
+    sep = QFrame()
+    sep.setFrameShape(QFrame.Shape.HLine)
+    sep.setFrameShadow(QFrame.Shadow.Sunken)
+    sep.setStyleSheet("color: palette(mid); margin: 8px 0;")
+    sep.setFixedHeight(1)
+    return sep
+
+
+def _stat_row(*blocks: QWidget) -> QHBoxLayout:
+    """Pack StatBlocks into evenly-spaced horizontal row"""
+    row = QHBoxLayout()
+    row.setSpacing(20)
+    for b in blocks:
+        row.addWidget(b)
+        row.addStretch()
+    return row
+
+
 class DailySummaryCard(DashboardCard):
     """Today's immersion summary: time, characters, sessions"""
     def __init__(self, parent=None):
         super().__init__("Today's Summary", parent)
 
-        grid = QGridLayout()
+        # Subtitle: date
+        self._date_label = QLabel()
+        self._date_label.setStyleSheet(
+            "font-size: 11px; color: palette(mid); margin-bottom: 4px;"
+        )
+        self.add_content_widget(self._date_label)
+        # self.add_content_widget(_make_separator())
 
-        self._time_header = QLabel("Immersion Time")
-        self._time_header.setStyleSheet("font-size: 11px; color: gray;")
-        self._time_label = QLabel("0 min")
-        self._time_label.setStyleSheet("font-weight: bold; font-size: 20px;")
+        # Hero: total immersion time
+        self._time_hero = HeroStat("Immersion Time")
+        self.add_content_widget(self._time_hero)
+        self.add_content_widget(_make_separator())
 
-        self._chars_header = QLabel("Characters Read")
-        self._chars_header.setStyleSheet("font-size: 11px; color: gray;")
-        self._chars_label = QLabel("0 chars")
-        self._chars_label.setStyleSheet("font-weight: bold; font-size: 20px;")
+        # Secondary row: characters and session count
+        self._chars_block = StatBlock("Characters")
+        self._sessions_block = StatBlock("Sessions")
+        self.add_content_layout(_stat_row(self._chars_block, self._sessions_block))
+        self.add_content_widget(_make_separator())
 
-        self._sessions_label = QLabel("0 sessions")
-        self._sessions_label.setStyleSheet("font-size: 14px; color: gray;")
-        self._reading_label = QLabel("Reading: 0 min")
-        self._reading_label.setStyleSheet("font-size: 14px; color: gray;")
-        self._listening_label = QLabel("Listening: 0 min")
-        self._listening_label.setStyleSheet("font-size: 14px; color: gray;")
-
-        grid.addWidget(self._time_header, 0, 0)
-        grid.addWidget(self._time_label, 1, 0, 3, 1)
-        grid.addWidget(self._chars_header, 0, 1)
-        grid.addWidget(self._chars_label, 1, 1, 3, 1)
-
-        grid.addWidget(self._sessions_label, 1, 2)
-        grid.addWidget(self._listening_label, 2, 2)
-        grid.addWidget(self._reading_label, 3, 2)
-
-        self.add_content_layout(grid)
+        # Activity breakdown row
+        self._reading_block = StatBlock("Reading")
+        self._listening_block = StatBlock("Listening")
+        self._both_block = StatBlock("Both")
+        self.add_content_layout(_stat_row(
+            self._reading_block, self._listening_block, self._both_block,
+        ))
 
     def refresh(self, filters: DashboardFilters):
         import repo
         summary = repo.get_daily_summary()
-        # print("DAILY SUMMARY:", summary)
 
-        self._time_label.setText(format_duration_str(summary["total_minutes"]))
-        self._chars_label.setText(f'{summary["total_chars"]:,} chars')
-        self._sessions_label.setText(f'{summary["session_count"]} sessions')
+        d = date.fromisoformat(summary["date"])
+        self._date_label.setText(d.strftime("%A, %B %d"))
 
+        self._time_hero.set_value(format_duration_str(summary["total_minutes"]))
+        self._chars_block.set_value(f"{summary['total_chars']:,}")
+        self._sessions_block.set_value(str(summary["session_count"]))
         # !! currently does not count 'both' activity
         by_act = summary.get("by_activity", {})
-        self._reading_label.setText(
-            f'Reading: {format_duration_str(by_act.get("reading", 0))}'
-        )
-        self._listening_label.setText(
-            f'Listening: {format_duration_str(by_act.get("listening", 0))}'
-        )
+        self._reading_block.set_value(format_minutes(by_act.get("reading", 0)))
+        self._listening_block.set_value(format_minutes(by_act.get("listening", 0)))
+        self._both_block.set_value(format_minutes(by_act.get("both", 0)))
+
+
+# !TODO! Weekly Summary
 
 
 class AllTimeTotalsCard(DashboardCard):
     """All-time grand totals."""
     def __init__(self, parent=None):
         super().__init__("All-Time Totals", parent)
-        self._labels = {}
-        grid = QGridLayout()
 
-        # !TODO! titles count by medium, and optionally only days with total_minutes > 30 are active days
-        for i, (key, display) in enumerate([
-            ("total_minutes", "Total Time"),
-            ("total_chars", "Characters Read"),
-            ("session_count", "Sessions"),
-            ("active_days", "Active Days")
-        ]):
-            header = QLabel(display)
-            header.setStyleSheet("font-size: 11px; color: gray;")
-            value = QLabel("--")
-            value.setStyleSheet("font-weight: bold; font-size: 16px")
-            grid.addWidget(header, 0, i)
-            grid.addWidget(value, 1, i)
-            self._labels[key] = value
+        # Subtitle: "Since YYYY-MM-DD"
+        self._since_label = QLabel()
+        self._since_label.setStyleSheet(
+            "font-size: 11px; color: palette(mid); margin-bottom: 4px;"
+        )
+        self.add_content_widget(self._since_label)
+        # self.add_content_widget(_make_separator())
 
-        self.add_content_layout(grid)
+        # Hero: total time
+        self._time_hero = HeroStat("Total Immersion Time")
+        self.add_content_widget(self._time_hero)
+        self.add_content_widget(_make_separator())
+
+        # Volume stats row
+        self._chars_block = StatBlock("Chars")
+        self._sessions_block = StatBlock("Sessions")
+        self._active_days_block = StatBlock("Active Days")
+        self.add_content_layout(_stat_row(
+            self._chars_block, self._sessions_block, self._active_days_block
+        ))
+        self.add_content_widget(_make_separator())
+
+        # Activity breakdown
+        self._reading_block = StatBlock("Reading")
+        self._listening_block = StatBlock("Listening")
+        self._both_block = StatBlock("Both")
+        self.add_content_layout(_stat_row(
+            self._reading_block, self._listening_block, self._both_block,
+        ))
+        self.add_content_widget(_make_separator())
+
+        # Content row
+        self._pages_block = StatBlock("Pages")
+        self._episodes_block = StatBlock("Episodes")
+        self._titles_block = StatBlock("Titles")
+        self.add_content_layout(_stat_row(
+            self._pages_block, self._episodes_block, self._titles_block,
+        ))
 
     def refresh(self, filters: DashboardFilters):
         import repo
         totals = repo.get_alltime_totals()
         print("ALL-TIME TOTALS:", totals)
 
-        for key, label in self._labels.items():
-            if key == "total_minutes":
-                label.setText(format_minutes(totals[key]))
-            else:
-                label.setText(f"{totals[key]:,}")
+        first = totals.get("first_session")
+        if first:
+            d = date.fromisoformat(first)
+            self._since_label.setText(f"Since {d.strftime('%B %d, %Y')}")
+        else:
+            self._since_label.setText("No sessions logged yet")
+        # hero
+        self._time_hero.set_value(format_minutes(totals.get("total_minutes", 0)))
+        # volume row
+        self._sessions_block.set_value(f"{totals.get('session_count', 0):,}")
+        self._active_days_block.set_value(f"{totals.get('active_days', 0):,}")
+        self._titles_block.set_value(f"{totals.get('title_count', 0):,}")
+        # activity row
+        by_act = totals.get("by_activity", {})
+        self._reading_block.set_value(format_minutes(by_act.get("reading", 0)))
+        self._listening_block.set_value(format_minutes(by_act.get("listening", 0)))
+        self._both_block.set_value(format_minutes(by_act.get("both", 0)))
+
+        self._chars_block.set_value(f"{totals.get('total_chars', 0):,}")
+        self._pages_block.set_value(f"{totals.get('total_pages', 0):,}")
+        self._episodes_block.set_value(f"{totals.get('total_episodes', 0):,}")
+
 

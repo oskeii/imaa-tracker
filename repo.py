@@ -307,10 +307,8 @@ def get_daily_summary(target_date: str = None) -> dict:
 
     conn.close()
     return {
+        **totals_row,
         "date": target_date,
-        "total_minutes": totals_row["total_minutes"],
-        "total_chars": totals_row["total_chars"],
-        "session_count": totals_row["session_count"],
         "by_activity": {row["activity_type"]: row["minutes"] for row in activity_rows},
     }
 
@@ -341,28 +339,37 @@ def get_alltime_totals() -> dict:
             COUNT(*)                            AS session_count,
             MIN(date)                           AS first_session,
             MAX(date)                           AS last_session,
-            COUNT(DISTINCT date)                AS active_days
+            COUNT(DISTINCT date)                AS days_since_start,
+            COUNT(DISTINCT title_id)            AS title_count,
+            COALESCE(SUM(episode_count), 0)     AS total_episodes,
+            COALESCE(SUM(page_count), 0)        AS total_pages
         FROM immersion_sessions
     """).fetchone()
-    active_rows = conn.execute("""
+    active_days = conn.execute("""
         SELECT date,
             COALESCE(SUM(duration_minutes), 0)  AS daily_minutes
         FROM immersion_sessions
         GROUP BY date
-        HAVING daily_minutes >= 30
+        HAVING daily_minutes >= 15
     """).fetchall()
-    # print(f"ACTIVE DAYS ({len(active_rows)}):", [dict(r) for r in active_rows])
 
-    titles_rows = conn.execute("""
-        SELECT medium_type,
-            COUNT(DISTINCT title_id) AS title_count
+    activity_rows = conn.execute("""
+        SELECT activity_type,
+            COALESCE(SUM(duration_minutes), 0)  AS minutes,
+            COUNT(*)                            AS session_count
         FROM immersion_sessions
-        GROUP BY medium_type ORDER BY title_count DESC
+        GROUP BY activity_type
     """).fetchall()
-    print("TITLE COUNT BY MEDIUM:", [dict(row) for row in titles_rows])
+
+    # titles_row = conn.execute("SELECT COUNT(*) AS title_count FROM titles WHERE medium_type != 'youtube'").fetchone()
+    # print("Num of Titles (excl. youtube):", titles_row['title_count'])
 
     conn.close()
-    return dict(row)
+    return {
+        **row,
+        "active_days": len(active_days),
+        "by_activity": {row["activity_type"]: row["minutes"] for row in activity_rows},
+    }
 
 
 def get_time_by_medium(start_date: str, end_date: str, activity: str = None) -> list[dict]:

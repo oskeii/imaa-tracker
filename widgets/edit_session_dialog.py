@@ -397,7 +397,7 @@ class EditSessionDialog(QDialog):
                 checkbox = self._field_checkboxes.get(k)
                 if checkbox is None or not checkbox.isChecked() or not checkbox.isEnabled():
                     continue
-            if w.isVisible():  # !!
+            if w.isVisible():  # non-visible fields are None, retaining current value
                 value = self._collect_field_value(k)
 
             db_key = "urls_json" if k == "urls" else k
