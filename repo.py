@@ -317,16 +317,89 @@ def get_weekly_summary(week_of: str = None) -> dict:  # !TODO!
     """
     Stats summary for a given week, Monday start. (i.e. total time, character count, sessions, and breakdown by activity)
     week_of (ISO string) can be any date within the target week. uses today's date if not provided
-    """
-    if week_of is None:
-        week_of = date.today()
-
-    return {
-        "week_start": "",
-        "week_end": "",
+    Returns: {
+        "week_start": (Monday ISO date),
+        "week_end": (Sunday ISO date),
         "total_minutes": 0,
         "total_chars": 0,
-        "session_count": 0
+        "session_count": 0,
+        "by_activity": {"reading": 0, "listening": 0, "both": 0},
+        "daily_avg": {
+            "minutes": 0,
+            "chars": 0,
+            "reading_minutes": 0,
+            "listening_minutes": 0,
+        },
+        "daily_minutes": {
+            "2026-03-30": {"reading": 0, "listening": 0, "both": 0},
+            "2026-03-31": {"reading": 0, "listening": 0, "both": 0},
+            ...,
+        },
+        "daily_chars": {
+            "2026-03-30": {"reading": 0, "listening": 0, "both": 0},
+            "2026-03-31": {"reading": 0, "listening": 0, "both": 0},
+            ...,
+        }
+    }
+    """
+    if week_of is None:
+        target = date.today()
+    else:
+        target = date.fromisoformat(week_of)
+
+    week_start = target - timedelta(days=target.weekday())
+    week_end = week_start + timedelta(days=6)
+    days = [(week_start + timedelta(days=i)).isoformat() for i in range(7)]
+
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT  date,
+                activity_type,
+                COALESCE(SUM(duration_minutes), 0)  AS minutes,
+                COALESCE(SUM(character_count), 0)  AS chars,
+                COUNT(*) AS sessions
+        FROM immersion_sessions
+        WHERE date >= ? AND date <= ?
+        GROUP BY date, activity_type
+    """, (week_start.isoformat(), week_end.isoformat())).fetchall()
+    conn.close()
+    # print("GET WEEKLY SUMMARY:\n", [dict(r) for r in rows])
+
+    daily_minutes = {d: {"reading": 0, "listening": 0, "both": 0} for d in days}
+    daily_chars = {d: 0 for d in days}
+    total_minutes, total_chars, session_count = 0, 0, 0
+    weekly_min_by_activity = {"reading": 0, "listening": 0, "both": 0}
+
+    for r in rows:
+        d = r["date"]
+        act = r["activity_type"]
+        mins = r["minutes"]
+        chars = r["chars"]
+        sessions = r["sessions"]
+
+        total_minutes += mins
+        total_chars += chars
+        session_count += sessions
+
+        weekly_min_by_activity[act] += mins
+        daily_minutes[d][act] += mins
+        daily_chars[d] += chars
+
+    return {
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "total_minutes": total_minutes,
+        "total_chars": total_chars,
+        "session_count": session_count,
+        "by_activity": weekly_min_by_activity,
+        "daily_avg": {
+            "minutes": round(total_minutes/7),
+            "chars": round(total_chars/7),
+            "reading_minutes": round(weekly_min_by_activity["reading"]/7),
+            "listening_minutes": round(weekly_min_by_activity["listening"]/7),
+        },
+        "daily_minutes": daily_minutes,
+        "daily_chars": daily_chars
     }
 
 

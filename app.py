@@ -2,7 +2,8 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QHBoxLayout
 
 from db import init_db
 from widgets import LogForm, SessionHistoryWidget, DashboardContainer
-from widgets.dashboard import DailySummaryCard, AllTimeTotalsCard
+# from widgets.dashboard import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
+from widgets.summary_cards import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
 from widgets.charts_mpl import TimeByMediumPieChart, TimeByMediumBarChart, ActivityRatioChart
 from widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
 
@@ -15,6 +16,7 @@ def create_dashboard() -> DashboardContainer:
     # dashboard.add_card(DailySummaryCard())
     # dashboard.add_card(AllTimeTotalsCard())
     dashboard.add_cards_hbox(DailySummaryCard(), AllTimeTotalsCard())
+    dashboard.add_card(WeeklySummaryCard())
 
     dashboard.add_card(TimeByMediumPieChart())
     dashboard.add_card(ActivityRatioChart())
