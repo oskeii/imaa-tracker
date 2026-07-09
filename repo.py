@@ -313,7 +313,7 @@ def get_daily_summary(target_date: str = None) -> dict:
     }
 
 
-def get_weekly_summary(week_of: str = None) -> dict:  # !TODO!
+def get_weekly_summary(week_of: str = None) -> dict:
     """
     Stats summary for a given week, Monday start. (i.e. total time, character count, sessions, and breakdown by activity)
     week_of (ISO string) can be any date within the target week. uses today's date if not provided

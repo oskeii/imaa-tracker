@@ -1,10 +1,9 @@
 from PyQt6.QtWidgets import (
     QWidget, QFrame, QHBoxLayout, QVBoxLayout,
-    QLabel, QPushButton
+    QLabel
 )
-from PyQt6.QtCore import Qt
-from .dashboard import DashboardCard, DashboardFilters
-from db import ENUMS, format_minutes, format_duration_str
+from .dashboard import DashboardCard
+from db import format_minutes, format_duration_str
 
 from datetime import date
 import numpy as np
@@ -92,8 +91,13 @@ def _stat_row(*blocks: QWidget) -> QHBoxLayout:
 
 class DailySummaryCard(DashboardCard):
     """Today's immersion summary: time, characters, sessions"""
+    SUPPORTED_FILTERS = {"target_date"}
+    DEFAULT_FILTERS = {"target_date": date.today().isoformat()}
+    STEP_FILTER = "target_date"
+    STEP_PERIOD = "day"
+
     def __init__(self, parent=None):
-        super().__init__("Today's Summary", parent)
+        super().__init__("Daily Summary", parent)
 
         # Subtitle: date
         self._date_label = QLabel()
@@ -122,9 +126,9 @@ class DailySummaryCard(DashboardCard):
             self._reading_block, self._listening_block, self._both_block,
         ))
 
-    def refresh(self, filters: DashboardFilters):
+    def refresh(self):
         import repo
-        summary = repo.get_daily_summary()
+        summary = repo.get_daily_summary(target_date=self.filters.get("target_date"))
 
         d = date.fromisoformat(summary["date"])
         self._date_label.setText(d.strftime("%A, %B %d"))
@@ -143,8 +147,13 @@ class WeeklySummaryCard(DashboardCard):
     """
     Two-column weekly overview
     """
+    SUPPORTED_FILTERS = {"target_date"}
+    DEFAULT_FILTERS = {"target_date": date.today().isoformat()}
+    STEP_FILTER = "target_date"
+    STEP_PERIOD = "week"
+
     def __init__(self, parent=None):
-        super().__init__("This Week", parent)
+        super().__init__("Weekly Summary", parent)
 
         # Subtitle: date range
         self._week_label = QLabel()
@@ -200,16 +209,16 @@ class WeeklySummaryCard(DashboardCard):
         self._canvas.setMinimumHeight(240)
         layout.addWidget(self._canvas)
 
-    def refresh(self, filters: DashboardFilters):
+    def refresh(self):
         import repo
-        summary = repo.get_weekly_summary(week_of=filters.start_date)
+        summary = repo.get_weekly_summary(week_of=self.filters.get("target_date"))
         print("WEEKLY SUMMARY:", summary)
 
         # Subtitle
         week_start = date.fromisoformat(summary['week_start']).strftime("%b-%d-%Y")
         week_end = date.fromisoformat(summary['week_end']).strftime("%b-%d-%Y")
         self._week_label.setText(
-            f"Week of: {week_start} → {week_end}"
+            f"{week_start} → {week_end}"
         )
 
         # stats column
@@ -305,7 +314,7 @@ class AllTimeTotalsCard(DashboardCard):
             self._pages_block, self._episodes_block, self._titles_block,
         ))
 
-    def refresh(self, filters: DashboardFilters):
+    def refresh(self):
         import repo
         totals = repo.get_alltime_totals()
         print("ALL-TIME TOTALS:", totals)

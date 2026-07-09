@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import pandas as pd
 
-from .dashboard import DashboardCard, DashboardFilters
-from db import ENUMS, format_minutes
+from .dashboard import DashboardCard
+from db import ENUMS
 
 MEDIUM_COLORS = {
     "anime":        "#5B8FF9",
@@ -33,7 +33,7 @@ def _group_small_slices(
         [
             {label_key: "novel", value_key: 1234,...},
             ...,
-            {label_key: "other", value_key: 123,...}
+            {label_key: "other", value_key: 123,...},
         ]
     """
     total = sum([r[value_key] for r in data])
@@ -92,14 +92,14 @@ def _limit_recent_periods(data: dict, max_periods: int) -> dict:
     return {k: data[k] for k in sorted_keys}
 
 
-def _format_period_str(filters: DashboardFilters) -> str:
+def _format_period_str(filters: dict) -> str:
     """Readable label for currently filtered period"""
-    if filters.start_date and filters.end_date:
-        return f"{filters.start_date} → {filters.end_date}"
-    if filters.start_date:
-        return f"Since {filters.start_date}"
-    if filters.end_date:
-        return f"Until {filters.end_date}"
+    if filters.get("start_date") and filters.get("end_date"):
+        return f"{filters.get('start_date')} → {filters.get('end_date')}"
+    if filters.get("start_date"):
+        return f"Since {filters.get('start_date')}"
+    if filters.get("end_date"):
+        return f"Until {filters.get('end_date')}"
     return "All-time"
 
 
@@ -123,14 +123,13 @@ class MplChartCard(DashboardCard):
 
         # self.figure.set_alpha(0)
 
-    def refresh(self, filters: DashboardFilters):
+    def refresh(self):
         self.ax.clear()
-        self._draw(filters)
+        self._draw()
         self.canvas.draw()  # updates the screen
         self.figure.tight_layout()
-        # plt.tight_layout()
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         """Must be implemented by subclasses. Plot data on self.ax"""
         raise NotImplementedError
 
@@ -139,12 +138,19 @@ class TimeByMediumPieChart(MplChartCard):
     """
     Pie chart showing distribution of time spent across media types.
     """
+
+    SUPPORTED_FILTERS = {"start_date", "end_date"}
+
     def __init__(self, parent=None):
         super().__init__("Time by Medium", figsize=(8, 4), parent=parent)
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         import repo
-        data = repo.get_time_by_medium(filters.start_date, filters.end_date)
+        data = repo.get_time_by_medium(
+            self.filters.get("start_date"),
+            self.filters.get("end_date"),
+            self.filters.get("activity_type")
+        )
         print("TIME BY MEDIUM:", data)
         # [{"medium_type": "novel", "total_minutes": 1234, "session_count": 62}, ...]
 
@@ -175,20 +181,26 @@ class TimeByMediumPieChart(MplChartCard):
             # t.set_color("white")
             t.set_fontweight("bold")
 
-        self.ax.set_title(_format_period_str(filters), fontsize=10)
+        self.ax.set_title(_format_period_str(self.filters), fontsize=10)
 
 
 class TimeByMediumBarChart(MplChartCard):  # !TODO!
     """
     Stacked bar chart: time by medium, per month
     """
+    SUPPORTED_FILTERS = {"start_date", "end_date", "activity_type"}
+
     def __init__(self, parent=None):
         super().__init__("Monthly Time by Medium", figsize=(8, 8), parent=parent)
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         import repo
         import numpy as np
-        data = repo.get_time_by_medium_monthly(filters.start_date, filters.end_date)
+        data = repo.get_time_by_medium_monthly(
+            self.filters.get("start_date"),
+            self.filters.get("end_date"),
+            self.filters.get("activity_type")
+        )
         # {"2026-04": {"novel": 1234, "anime": 234,...}, "2026-05": {...}, ...}
         periods = [period for period in data.keys()]
         x = range(len(periods))
@@ -215,6 +227,9 @@ class ActivityRatioChart(MplChartCard):
     """
     Stacked bar chart: reading vs listening, per month.
     """
+    SUPPORTED_FILTERS = {"start_date", "end_date", "group_by"}
+    DEFAULT_FILTERS = {"group_by": "month"}
+
     ACTIVITY_COLORS = {
         "reading": "#F6BD16",
         "listening": "#5B8FF9",
@@ -222,16 +237,16 @@ class ActivityRatioChart(MplChartCard):
 
     def __init__(self, parent=None, group_by="month", max_periods=12):
         super().__init__("Reading vs Listening", figsize=(8, 3.5), parent=parent)
-        self.group_by = group_by
         self.max_periods = max_periods
+        self.filters["group_by"] = group_by
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         import repo
         import numpy as np
         data = repo.get_activity_breakdown(
-            start_date=filters.start_date,
-            end_date=filters.end_date,
-            group_by=self.group_by
+            self.filters.get("start_date"),
+            self.filters.get("end_date"),
+            self.filters.get("group_by")
         )
 
         if not data:
@@ -242,7 +257,7 @@ class ActivityRatioChart(MplChartCard):
         # Fill empty period gaps
         data = _fill_missing_periods(
             data,
-            group_by=self.group_by,
+            group_by=self.filters.get("group_by"),
             fill_keys=["reading", "listening", "both", "session_count"]
         )
         # Limit to 12 most recent periods

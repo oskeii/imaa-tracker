@@ -1,11 +1,11 @@
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt
-from datetime import date, timedelta
+from datetime import date
 
-from .dashboard import DashboardCard, DashboardFilters
+from .dashboard import DashboardCard
 
 
 pg.setConfigOptions(antialias=True)
+
 
 def dates_to_timestamps(date_strings: list[str]) -> list[int]:
     """Convert ISO date strings to UNIX timestamps for pyqtgraph axis"""
@@ -59,11 +59,11 @@ class PgChartCard(DashboardCard):
 
         self.add_content_widget(self.plot_widget)
 
-    def refresh(self, filters: DashboardFilters):
+    def refresh(self):
         self.plot_widget.clear()
-        self._draw(filters)
+        self._draw()
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         raise NotImplementedError
 
 
@@ -73,17 +73,19 @@ class ImmersionTimeTrend(PgChartCard):
         Line A - daily hours
         Line B - 7-day rolling average
     """
+    SUPPORTED_FILTERS = {"start_date", "end_date"}
+
     def __init__(self, parent=None):
         super().__init__("Immersion Time Trend", parent=parent)
         self.plot_widget.setLabel("left", "Hours")
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         import repo
         import pandas as pd
 
         data = repo.get_daily_totals(
-            filters.start_date,
-            filters.end_date
+            self.filters.get("start_date"),
+            self.filters.get("end_date")
         )
 
         if not data:
@@ -136,7 +138,6 @@ class ImmersionTimeTrend(PgChartCard):
                 name="Outliers",
             )
 
-
         # Line B: 14-day rolling average
         if len(df) >= 14:
             rolling = total_hours.rolling(14, min_periods=1).mean()
@@ -152,18 +153,21 @@ class ReadingSpeedTrend(PgChartCard):
     Reading speed (chars/hr) over time.
     Scatter plot: reading speed per session
     Line plot: rolling average trend
-
     """
+    SUPPORTED_FILTERS = {"start_date", "end_date"}
+
     def __init__(self, parent=None):
         super().__init__(title="Reading Speed Trend", parent=parent)
         self.plot_widget.setLabel("left", "Chars/hr")
 
-    def _draw(self, filters: DashboardFilters):
+    def _draw(self):
         import repo
         import pandas as pd
-        import numpy as np
 
-        data = repo.get_reading_speed_data(filters.start_date, filters.end_date)
+        data = repo.get_reading_speed_data(
+            self.filters.get("start_date"),
+            self.filters.get("end_date")
+        )
         if not data:
             return
 
