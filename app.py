@@ -1,11 +1,13 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QHBoxLayout
+from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
 from db import init_db
 from widgets import LogForm, SessionHistoryWidget, DashboardContainer
-# from widgets.dashboard import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
 from widgets.summary_cards import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
-from widgets.charts_mpl import TimeByMediumPieChart, TimeByMediumBarChart, ActivityRatioChart
+from widgets.charts_mpl import TimeByMediumPieChart, ActivityRatioChart
 from widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
+
+from widgets.snapshot_export import save_dashboard_snapshot
 
 
 def create_dashboard() -> DashboardContainer:
@@ -41,8 +43,8 @@ class MainWindow(QMainWindow):
         self.session_history = SessionHistoryWidget()
         self.dashboard = create_dashboard()
 
-        self.tabs.addTab(self.dashboard, "Dashboard")
         self.tabs.addTab(self.log_form, "Log Session")
+        self.tabs.addTab(self.dashboard, "Dashboard")
         self.tabs.addTab(self.session_history, "History")
 
         # --- Cross-tab communication ---
@@ -52,6 +54,16 @@ class MainWindow(QMainWindow):
 
         # --- Status bar ---
         self.statusBar().showMessage("Ready")
+
+        # --- Actions ---
+        export_action = QAction("Export as PNG", self)
+        export_action.triggered.connect(lambda: save_dashboard_snapshot(self.dashboard, self))
+
+        # --- Menu ---
+        menu = self.menuBar()
+
+        file_menu = menu.addMenu("&File")
+        file_menu.addAction(export_action)
 
 
 def main():
