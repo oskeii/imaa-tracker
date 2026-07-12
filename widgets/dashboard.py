@@ -443,6 +443,66 @@ class FilterPopover(QDialog):
         self.close()
 
 
+class GlobalBroadcastBar(QWidget):  #!TODO! needs work: more options + handle period grouping
+    """Filter bar for pushing filter values to all cards at once."""
+
+    sig_broadcast_requested = pyqtSignal(dict)
+    sig_reset_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel("Set all cards:")
+        label.setStyleSheet("font-size: 11px; color: palette(mid);")
+        layout.addWidget(label)
+
+        for text, period in [
+            ("This Week", "week"),
+            ("This Month", "month"),
+            ("Last 30", 30),
+            ("Last 90", 90),
+            ("All Time", "all"),
+        ]:
+            btn = QPushButton(text)
+            btn.setFixedHeight(24)
+            btn.clicked.connect(lambda _, p=period: self._broadcast_date_range(p))
+            layout.addWidget(btn)
+
+        layout.addStretch()
+
+        reset_btn = QPushButton("Reset All")
+        reset_btn.setFixedHeight(24)
+        reset_btn.clicked.connect(self.sig_reset_requested.emit)
+        layout.addWidget(reset_btn)
+
+    def _broadcast_date_range(self, spec):
+        print("broadcast bar", spec)
+        today = date.today()
+        if spec == "week":
+            start = today - timedelta(days=today.weekday())
+            end = today
+        elif spec == "month":
+            start = today.replace(day=1)
+            end = today
+        elif spec == "all":
+            start = None
+            end = None
+        else:
+            start = today - timedelta(days=int(spec))
+            end = today
+
+        payload = {
+            "start_date": start.isoformat() if start else None,
+            "end_date": end.isoformat() if end else None,
+        }
+        self.sig_broadcast_requested.emit(payload)
+
+
 class DashboardContainer(QWidget):
     """The main dashboard tab (container)"""
 
@@ -456,9 +516,11 @@ class DashboardContainer(QWidget):
         main_layout = QVBoxLayout(self)
 
         filter_layout = QHBoxLayout()
+        self._broadcast_bar = GlobalBroadcastBar()
         self._refresh_btn = QPushButton("Refresh")
-        self._reset_btn = QPushButton("Reset All")
-        filter_layout.addWidget(self._reset_btn)
+        # self._reset_btn = QPushButton("Reset All")
+        # filter_layout.addWidget(self._reset_btn)
+        filter_layout.addWidget(self._broadcast_bar)
         filter_layout.addWidget(self._refresh_btn)
         main_layout.addLayout(filter_layout)
 
@@ -477,7 +539,9 @@ class DashboardContainer(QWidget):
 
     def _connect_signals(self):
         self._refresh_btn.clicked.connect(self.refresh_all)
-        self._reset_btn.clicked.connect(self._reset_all)
+        # self._reset_btn.clicked.connect(self._reset_all)
+        self._broadcast_bar.sig_broadcast_requested.connect(self._broadcast_to_all)
+        self._broadcast_bar.sig_reset_requested.connect(self._reset_all)
 
     def add_card(self, card: DashboardCard):
         self._cards.append(card)
@@ -508,6 +572,11 @@ class DashboardContainer(QWidget):
         for card in self._cards:
             print(card.card_title)
             card.refresh()
+
+    def _broadcast_to_all(self, filter_dict: dict):
+        """Push filter values to every card. Unsupported keys are ignored per-card"""
+        for card in self._cards:
+            card.apply_filter_update(filter_dict)
 
     def _reset_all(self):
         for card in self._cards:
