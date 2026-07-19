@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QDate, pyqtSignal, QStringListModel
 import json
 
 from .log_form import MEDIUM_DETAILS
-from db import ENUMS
+from constants import ENUMS
 import repo
 
 # Fields that are universal (always editable, even across mixed mediums)

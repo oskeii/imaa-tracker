@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEvent, QDate
 from datetime import date, timedelta
-from db import ENUMS
+from constants import ENUMS
 
 SENTINEL_DATE = QDate(1970, 1, 1)
 

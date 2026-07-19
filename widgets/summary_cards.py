@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QLabel
 )
 from .dashboard import DashboardCard
-from db import format_minutes, format_duration_str
+from utils.formatting import format_minutes, format_duration_str
 
 from datetime import date
 import numpy as np

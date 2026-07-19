@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
 from .edit_session_dialog import EditSessionDialog
-from db import ENUMS, format_minutes
+from constants import ENUMS
+from utils.formatting import format_minutes
 import repo
 
 # Column definitions: (header_text, dict_key, alignment  # !TODO!

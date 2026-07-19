@@ -1,4 +1,5 @@
-from db import get_connection, ENUMS
+from constants import ENUMS
+from db import get_connection
 from datetime import date, timedelta
 
 TITLES_COLS = {

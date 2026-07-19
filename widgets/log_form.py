@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QDate, pyqtSignal, QStringListModel
 import json
 
 from .stopwatch import Stopwatch
-from db import ENUMS
+from constants import ENUMS
 import repo
 
 # form display name, default activity, and relevant metric fields for each medium type

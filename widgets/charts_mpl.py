@@ -3,7 +3,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import pandas as pd
 
 from .dashboard import DashboardCard
-from db import ENUMS
+from constants import ENUMS
 
 MEDIUM_COLORS = {
     "anime":        "#5B8FF9",
