@@ -1,13 +1,14 @@
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
-from db import init_db
+from migrations import open_database
 from widgets import LogForm, SessionHistoryWidget, DashboardContainer
 from widgets.summary_cards import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
 from widgets.charts_mpl import TimeByMediumPieChart, ActivityRatioChart
 from widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
 
 from widgets.snapshot_export import save_dashboard_snapshot
+from widgets.backup_action import save_database_backup
 
 
 def create_dashboard() -> DashboardContainer:
@@ -59,15 +60,20 @@ class MainWindow(QMainWindow):
         export_action = QAction("Export as PNG", self)
         export_action.triggered.connect(lambda: save_dashboard_snapshot(self.dashboard, self))
 
+        backup_action = QAction("Back Up Database...", self)
+        backup_action.triggered.connect(lambda : save_database_backup(self))
+
         # --- Menu ---
         menu = self.menuBar()
 
         file_menu = menu.addMenu("&File")
         file_menu.addAction(export_action)
+        file_menu.addSeparator()
+        file_menu.addAction(backup_action)
 
 
 def main():
-    init_db()
+    open_database()
 
     app = QApplication([])
     app.setStyle("Fusion")

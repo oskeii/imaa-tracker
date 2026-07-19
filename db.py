@@ -1,108 +1,100 @@
-"""DATABASE SCHEMA VERSION 1.0.1"""
+"""
+Database infra: connections, schema creation, backups.
+DATABASE SCHEMA VERSION 3
+"""
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 
-DB_NAME = "imaa_tracker.db"
-ENUMS = {
-    "API_LIST": [
-        "anilist",
-        "vndb",
-        "tmdb",
-        "igdb",
-        "google_books",
-    ],
-    "MEDIUM_TYPES": [
-        "anime",
-        "drama",
-        "visual_novel",
-        "light_novel",
-        "novel",
-        "book",
-        "manga",
-        "game",
-        "podcast",
-        "audiobook",
-        "youtube",
-    ],
-    "ACTIVITY_TYPES": ["reading", "listening", "both"],
-    # "READING_DIRECTIONS": ["horizontal", "vertical"],
-    "RESOURCE_TYPES": ["textbook", "workbook", "drills", "video_course", "app", "mock_exam", "other"],
-    "RESOURCE_LEVELS": ["N5", "N4", "N3", "N2", "N1", "beginner", "intermediate", "advanced"],
-    "STUDY_TYPES": ["anki", "textbook", "video", "grammar", "kanji", "vocab", "other"],
-    "TOPIC_AREAS": ["vocab", "kanji", "grammar", "reading_comp", "listening_comp", "other"],
-    "GOAL_TYPES": ["recurring", "lifetime"],
-    "GOAL_METRICS": [
-        "duration_minutes",
-        "character_count",
-        "episode_count",
-        "page_count",
-        "session_count",
-    ],
-    "GOAL_PERIODS": ["daily", "weekly", "monthly"],
-}
+from constants import ENUMS
+from utils.formatting import format_minutes, format_duration_str
+
+SCHEMA_VERSION = 3
+DB_NAME = "imaa_tracker.db"  # relative path
 
 
-def format_minutes(minutes: int) -> str:
-    """Format minutes as H:MM or '0 min'"""
-    if minutes == 0:
-        return "0 min"
-    # if minutes < 60:
-    #     return f"{minutes} min"
-    h = int(minutes // 60)
-    m = int(minutes % 60)
-    return f"{h}:{m:02}"
+def sql_enum(values) -> str:
+    """Render allowed values as a SQL tuple (for IN clause)."""
+    for v in values:
+        if "'" in str(v):
+            raise ValueError(f"enum value contains a quote, unsuitable for SQL: {v:!r}")
+    return "(" + ", ".join(f"'{v}'" for v in values) + ")"
 
 
-def format_duration_str(minutes: int) -> str:
-    """Format minutes as 'H hrs MM min' or 'MM min'"""
-    if minutes == 0:
-        return "0 min"
-    if minutes < 60:
-        return f"{minutes:02} min"
-    h = int(minutes // 60)
-    m = int(minutes % 60)
-    return f"{h}hrs {m:02}min"
+def enum_check(column: str, key: str, nullable: bool = False) -> str:
+    """Build a CHECK constraint for `column` with ENUMS[key]."""
+    allowed = sql_enum(ENUMS[key])
+    if nullable:
+        return f"CHECK ({column} IS NULL OR {column} IN {allowed})"
+    return f"CHECK ({column} IN {allowed})"
 
 
 def get_connection(db_path=None) -> sqlite3.Connection:
+    """
+    Open a configured connection.
+    Caller is responsible for closing. Prefer connect(), which closes it for you.
+    """
     if db_path is None:
         db_path = DB_NAME
-    try:
-        conn = sqlite3.connect(str(db_path))
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        conn.row_factory = sqlite3.Row
 
-        return conn
-    except Exception as e:
-        print(f"Error: {e}")
-        raise
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
-def init_db(db_path=None):
-    if db_path is None:
-        db_path = DB_NAME
+@contextmanager
+def connect(db_path=None) -> Iterator[sqlite3.Connection]:
+    """Yield a connection. Commit on success, rollback on error, always close."""
     conn = get_connection(db_path)
-    cur = conn.cursor()
-
     try:
-        # TITLES, IMMERSION SESSIONS
-        _create_immersion_tables(cur)
-        # RESOURCES, STUDY SESSIONS, EXAM SCORES
-        _create_study_tables(cur)
-        # GOALS, GOAL LOG, MILESTONES
-        _create_goals_tables(cur)
-
-        # TBD: languages, output sessions
-    except Exception as e:
-        print(f"Error: {e}")
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
         raise
     finally:
-        conn.commit()
         conn.close()
 
 
+def get_schema_version(db_path=None) -> int:
+    """Read schema version stamped in the DB header. 0= never stamped"""
+    with connect(db_path) as conn:
+        return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def backup_database(dest_path, db_path=None) -> str:
+    """
+    Write a single-file copy of the database to dest_path.
+    Uses VACUUM INTO 'path': Cannot run inside an explicit transaction.
+    Returns dest_path.
+    """
+    dest = Path(dest_path)
+
+    dest.unlink(missing_ok=True)  # VACUUM INTO refuses to overwrite; must clear target first
+    with connect(db_path) as conn:
+        conn.execute("VACUUM INTO ?", (str(dest),))
+
+    return str(dest)
+
+
+def init_db(db_path=None) -> None:
+    """Create the current schema in a NEW database and stamp SCHEMA_VERSION"""
+    with connect(db_path) as conn:
+        cur = conn.cursor()
+        _create_immersion_tables(cur)   # TITLES, IMMERSION SESSIONS
+        _create_study_tables(cur)       # RESOURCES, STUDY SESSIONS, EXAM SCORES
+        _create_goals_tables(cur)       # GOALS, GOAL LOG, MILESTONES
+        _create_settings_table(cur)     # SETTINGS
+        # TBD: languages, output sessions
+
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
 def _create_immersion_tables(cur: sqlite3.Cursor):
-    query_titles = """
+    query_titles = f"""
     -- ===== TITLES =====
     -- Media titles for immersion. 
     -- One entry per distinct consumable unit. e.g. "Re:Zero (LN)" and "Re:Zero (Anime)" are separate titles.
@@ -110,7 +102,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
     CREATE TABLE IF NOT EXISTS titles (
         id				    INTEGER PRIMARY KEY,
         name			    TEXT NOT NULL,
-        medium_type		    TEXT NOT NULL,	-- see MEDIUM_TYPES
+        medium_type		    TEXT NOT NULL {enum_check("medium_type", "MEDIUM_TYPES")},
         
         -- Optional metadata (populated manually or via API)
         genre			    TEXT,	-- comma-separated
@@ -118,7 +110,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         cover_image		    TEXT,	-- file path or URL
        
         --      External API details
-        api			        TEXT,	-- see API_LIST
+        api			        TEXT {enum_check("api", "API_LIST", nullable=True)},
         api_id		        TEXT,
         youtube_channel_id	TEXT,  -- for YT channel-type titles
         youtube_url		    TEXT,		-- channel URL
@@ -130,7 +122,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
     CREATE INDEX IF NOT EXISTS idx_titles_medium ON titles(medium_type);
     """
 
-    query_immersion_sessions = """
+    query_immersion_sessions = f"""
     -- ===== IMMERSION SESSIONS =====
     CREATE TABLE IF NOT EXISTS immersion_sessions (
         id				    INTEGER PRIMARY KEY,
@@ -138,8 +130,8 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         title_id            INTEGER,    -- FK to titles (nullable for quick-log)
         title_text          TEXT NOT NULL,   -- denormalized title for quick-log/display
         
-        medium_type         TEXT NOT NULL,  -- denormalized
-        activity_type       TEXT NOT NULL DEFAULT 'reading',    -- reading | listening | both
+        medium_type         TEXT NOT NULL {enum_check("medium_type", "MEDIUM_TYPES")},  -- denormalized
+        activity_type       TEXT NOT NULL DEFAULT 'reading' {enum_check("activity_type", "ACTIVITY_TYPES")},
         
         -- Metrics (fill what applies)
         duration_minutes    INTEGER,
@@ -147,7 +139,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         page_count          INTEGER,
         episode_count       INTEGER,
         
-        reading_direction   TEXT,   -- horizontal | vertical
+        reading_direction   TEXT {enum_check("reading_direction", "READING_DIRECTIONS", nullable=True)},
         
         -- Details
         volume              TEXT,
@@ -168,15 +160,8 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
     CREATE INDEX IF NOT EXISTS idx_sessions_activity ON immersion_sessions(activity_type);
     """
 
-    try:
-        cur.executescript(query_titles)
-        print("'Titles' table was created!")
-
-        cur.executescript(query_immersion_sessions)
-        print("'Immersion Sessions' table was created!")
-    except Exception as e:
-        print(f"Error: {e}")
-        raise
+    cur.executescript(query_titles)
+    cur.executescript(query_immersion_sessions)
 
 
 def _create_study_tables(cur: sqlite3.Cursor):
@@ -248,41 +233,35 @@ def _create_study_tables(cur: sqlite3.Cursor):
     CREATE INDEX IF NOT EXISTS idx_exam_level ON exam_scores(level);
     """
 
-    try:
-        cur.executescript(query_resources)
-        print("'Resources' table was created!")
-
-        cur.executescript(query_study_sessions)
-        print("'Study Sessions' table was created!")
-
-        cur.executescript(query_exam_scores)
-        print("'Exam Scores' table was created!")
-    except Exception as e:
-        print(f"Error: {e}")
-        raise
+    cur.executescript(query_resources)
+    cur.executescript(query_study_sessions)
+    cur.executescript(query_exam_scores)
 
 
 def _create_goals_tables(cur: sqlite3.Cursor):
-    query_goals = """
+    query_goals = f"""
     -- ===== GOALS =====
     -- A goal is a rule: a metric, a target, and optionally a recurring period.
     -- e.g. "Read 15k characters per day" or "Reach 1 million characters total."
     CREATE TABLE IF NOT EXISTS goals (
         id              INTEGER PRIMARY KEY,
         name            TEXT NOT NULL,      -- e.g. "Daily reading goal", "300 immersion hours", "200 listening hours"
-        goal_type       TEXT NOT NULL,      -- recurring | lifetime
-        metric          TEXT NOT NULL,      -- see METRIC_TYPES
+        goal_type       TEXT NOT NULL {enum_check("goal_type", "GOAL_TYPES")},
+        metric          TEXT NOT NULL {enum_check("metric", "GOAL_METRICS")},
         target_value    INTEGER NOT NULL,
-        period          TEXT,               -- daily | weekly | monthly (null for lifetime goal)
+        period          TEXT {enum_check("period", "GOAL_PERIODS", nullable=True)},
         
-        -- Optional filters
-        medium_type     TEXT,   -- null = any medium
-        activity_type   TEXT,   -- null = any activity
+        -- Optional filters (null = any)
+        medium_type     TEXT {enum_check("medium_type", "MEDIUM_TYPES", nullable=True)},
+        activity_type   TEXT {enum_check("activity_type", "ACTIVITY_TYPES", nullable=True)},
         
         -- Habit health window (for recurring goals)
         health_window_days  INTEGER DEFAULT 60,     -- health percentage calculated based on  the last N days
         
         is_active       BOOLEAN NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+        pinned          BOOLEAN NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)),
+        show_on_log     BOOLEAN NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)),
+        
         achieved_at     TEXT,       -- for lifetime goal (ISO datetime)
         notes           TEXT,
         created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -291,12 +270,7 @@ def _create_goals_tables(cur: sqlite3.Cursor):
 
     query_goal_log = """
     -- ===== GOAL LOG =====
-    -- One row per goal per completed period. Records whether the goal was
-    -- hit and the actual value reached.
-    --
-    -- For recurring goals: period_date is the start of the period
-    --   (the date itself for daily, Monday for weekly, 1st for monthly).
-    -- For lifetime goals: one row created when achieved.
+    -- One row per goal per completed period. 
     CREATE TABLE IF NOT EXISTS goal_log (
         id              INTEGER PRIMARY KEY,
         goal_id         INTEGER NOT NULL,
@@ -315,9 +289,7 @@ def _create_goals_tables(cur: sqlite3.Cursor):
 
     query_milestones = """
     -- ===== MILESTONES =====
-    -- A milestone is an event: something notable that happened at a point in time.
-    -- Can be manually created ("Finished my first novel") or auto-generated
-    -- when a lifetime goal is achieved.
+    -- A milestone is a notable event. manually created ("Finished my first novel") or auto-generated on lifetime goal achievement.
     CREATE TABLE IF NOT EXISTS milestones (
         id              INTEGER PRIMARY KEY,
         title           TEXT NOT NULL,
@@ -328,8 +300,7 @@ def _create_goals_tables(cur: sqlite3.Cursor):
         metric          TEXT,
         metric_value    INTEGER,
         
-        -- Filters used to traceback contributing sessions
-        -- Stored as JSON to reconstruct query
+        -- Filters used to traceback contributing sessions as JSON to reconstruct query
         -- e.g. {"medium_type": "light_novel", "start_date": "2024-01-01", "title_id": 15}
         filter_json     TEXT,
         
@@ -341,20 +312,28 @@ def _create_goals_tables(cur: sqlite3.Cursor):
     CREATE INDEX IF NOT EXISTS idx_milestones_date ON milestones(date);
     """
 
-    try:
-        cur.executescript(query_goals)
-        print("'Goals' table was created!")
+    cur.executescript(query_goals)
+    cur.executescript(query_goal_log)
+    cur.executescript(query_milestones)
 
-        cur.executescript(query_goal_log)
-        print("'Goal Log' table was created!")
 
-        cur.executescript(query_milestones)
-        print("'Milestones' table was created!")
-    except Exception as e:
-        print(f"Error: {e}")
-        raise
+def _create_settings_table(cur: sqlite3.Cursor):
+    query_settings = """
+    -- ===== SETTINGS =====
+    -- Key-value with TEXT values; just INSERT to add a new setting
+    CREATE TABLE IF NOT EXISTS settings (
+        key         TEXT PRIMARY KEY,
+        value       TEXT NOT NULL,
+        updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    
+    -- DEFAULTS.
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('active_day_minutes', '15');
+    """
+
+    cur.executescript(query_settings)
 
 
 if __name__ == "__main__":
     init_db()
-    print(f"Database initialized: {DB_NAME}")
+    print(f"Database initialized at schema version {SCHEMA_VERSION}: {DB_NAME}")
