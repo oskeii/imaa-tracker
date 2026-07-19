@@ -8,7 +8,10 @@ so re-running in the future still produces a database with current activity.
 
 import json
 import random
+import argparse
+from pathlib import Path
 from typing import Any
+from collections import Counter
 
 random.seed(42)  # reproducible output
 
@@ -887,10 +890,18 @@ output = {
     "milestones": milestones,
 }
 
-with open("/home/claude/demo/demo.json", "w", encoding="utf-8") as f:
+# Default output: demo.json next to THIS script, --out overrides.
+parser = argparse.ArgumentParser(description="Generate demo.json for the tracker.")
+parser.add_argument("--out", default=None,
+                    help="Output path (default: demo.json beside this script)")
+args = parser.parse_args()
+
+out_path = Path(args.out) if args.out else Path(__file__).with_name("demo.json")
+
+with open(out_path, "w", encoding="utf-8") as f:
     json.dump(output, f, ensure_ascii=False, indent=2)
 
-print(f"Generated demo.json:")
+print(f"Generated demo.json at {out_path}:")
 print(f"  Titles:            {len(TITLES)}")
 print(f"  Resources:         {len(RESOURCES)}")
 print(f"  Immersion sessions: {len(sessions)}")
@@ -900,7 +911,6 @@ print(f"  Goals:             {len(goals)}")
 print(f"  Milestones:        {len(milestones)}")
 
 # Summary by medium
-from collections import Counter
 medium_count = Counter(s["medium_type"] for s in sessions)
 print("\n  Sessions by medium:")
 for m, c in medium_count.most_common():
