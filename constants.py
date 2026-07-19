@@ -1,0 +1,38 @@
+"""Domain vocabulary -- valid values for application domain"""
+ENUMS: dict[str, tuple[str, ...]] = {
+    "API_LIST": (
+        "anilist",
+        "vndb",
+        "tmdb",
+        "igdb",
+        "google_books",
+    ),
+    "MEDIUM_TYPES": (
+        "anime",
+        "drama",
+        "visual_novel",
+        "light_novel",
+        "novel",
+        "book",
+        "manga",
+        "game",
+        "podcast",
+        "audiobook",
+        "youtube",
+    ),
+    "ACTIVITY_TYPES": ("reading", "listening", "both"),
+    "READING_DIRECTIONS": ("horizontal", "vertical"),
+    "RESOURCE_TYPES": ("textbook", "workbook", "drills", "video_course", "app", "mock_exam", "other"),
+    "RESOURCE_LEVELS": ("N5", "N4", "N3", "N2", "N1", "beginner", "intermediate", "advanced"),
+    "STUDY_TYPES": ("anki", "textbook", "video", "grammar", "kanji", "vocab", "other"),
+    "TOPIC_AREAS": ("vocab", "kanji", "grammar", "reading_comp", "listening_comp", "other"),
+    "GOAL_TYPES": ("recurring", "lifetime"),
+    "GOAL_METRICS": (
+        "duration_minutes",
+        "character_count",
+        "episode_count",
+        "page_count",
+        "session_count",
+    ),
+    "GOAL_PERIODS": ("daily", "weekly", "monthly"),
+}
