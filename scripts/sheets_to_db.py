@@ -7,14 +7,14 @@ Usage:
 
 import sys
 import re
+import argparse
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timedelta
 import pandas as pd
 
-from db import (
-    get_connection, init_db, DB_NAME,
-)
+from db import get_connection, DB_NAME
+from migrations import open_database
 
 # map old spreadsheet medium names to new medium_type values
 LEGACY_MEDIUM_MAP = {
@@ -226,7 +226,14 @@ def print_summary(conn: sqlite3.Connection):
 
 
 def main():
-    immersion_path = sys.argv[1] if len(sys.argv) > 1 else "Immersion_Log.xlsx"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("immersion_path", nargs="?", default="Immersion_Log.xlsx",
+                        help="Path to Immersion_Log.xlsx (default: ./Immersion_Log.xlsx)")
+    parser.add_argument("--db", default=None,
+                        help=f"Database path (default: {DB_NAME})")
+    args = parser.parse_args()
+
+    immersion_path = args.immersion_path
 
     while not Path(immersion_path).exists():
         print(f"Error: {immersion_path} not found")
@@ -235,9 +242,11 @@ def main():
         if immersion_path.upper() == "X":
             sys.exit(1)
 
-    print("Initializing database...")
-    init_db()
-    conn = get_connection()
+    db_path = args.db or DB_NAME
+
+    print("Opening database...")
+    open_database(db_path)   # creates a fresh schema or migrates an existing one
+    conn = get_connection(db_path)
 
     print(f"Importing immersion log from {immersion_path}...")
     n = migrate_immersion_log(immersion_path, conn)
@@ -245,7 +254,7 @@ def main():
 
     print_summary(conn)
     conn.close()
-    print(f"\nDone! Database saved to: {DB_NAME}")
+    print(f"\nDone! Database saved to: {db_path}")
 
     # Output stashed rows as CSV for user to log manually
     if stashed_rows:

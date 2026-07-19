@@ -19,9 +19,8 @@ import sqlite3
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
-from db import (
-    get_connection, init_db, DB_NAME
-)
+from db import get_connection, DB_NAME
+from migrations import open_database
 
 
 def days_ago_to_iso(days: int, reference: date = None) -> str:
@@ -375,8 +374,8 @@ def main():
 
     db_path = args.db or DB_NAME
 
-    print(f"Initializing database at {db_path}...")
-    init_db(db_path)
+    print(f"Opening database at {db_path}...")
+    open_database(db_path)   # creates a fresh schema or migrates an existing one (if outdated)
     conn = get_connection(db_path)
 
     if not args.append:

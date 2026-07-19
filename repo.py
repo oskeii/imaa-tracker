@@ -1,6 +1,7 @@
-from constants import ENUMS
-from db import get_connection
 from datetime import date, timedelta
+
+from constants import ENUMS
+from db import connect
 
 TITLES_COLS = {
     "name": {"type": str},
@@ -76,15 +77,14 @@ STUDY_SESSIONS_COLS = {
 # __________________________________________
 def get_all_titles(medium_type: str = None) -> list[dict]:
     """Fetch all titles, optionally filtered by medium type."""
-    conn = get_connection()
-    if medium_type:
-        rows = conn.execute(
-            "SELECT * FROM titles WHERE medium_type = ? ORDER BY name",
-            (medium_type,)
-        ).fetchall()
-    else:
-        rows = conn.execute("SELECT * FROM titles ORDER BY name").fetchall()
-    conn.close()
+    with connect() as conn:
+        if medium_type:
+            rows = conn.execute(
+                "SELECT * FROM titles WHERE medium_type = ? ORDER BY name",
+                (medium_type,)
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM titles ORDER BY name").fetchall()
 
     return [dict(r) for r in rows]
 
@@ -96,34 +96,29 @@ def add_title(name: str, medium_type: str, **kwargs) -> int:
     col_str = ", ".join(TITLES_COLS.keys())
     placeholders = ", ".join(f":{_}" for _ in TITLES_COLS.keys())
 
-    conn = get_connection()
-    cur = conn.execute(f"INSERT INTO titles ({col_str}) VALUES ({placeholders})", data)
-    conn.commit()
-    title_id = cur.lastrowid
-    conn.close()
-    return title_id
+    with connect() as conn:
+        cur = conn.execute(f"INSERT INTO titles ({col_str}) VALUES ({placeholders})", data)
+        title_id = cur.lastrowid
+        return title_id
 
 
 def get_or_create_title(name: str, medium_type: str) -> int:
     """Find an existing title by name & medium, else create new title. Returns ID"""
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT id FROM titles WHERE name = ? AND medium_type = ?",
-        (name, medium_type)
-    ).fetchone()
-    if row:
-        conn.close()
-        return row["id"]
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT id FROM titles WHERE name = ? AND medium_type = ?",
+            (name, medium_type)
+        ).fetchone()
+        if row:
+            return row["id"]
 
-    cur = conn.execute(
-        "INSERT INTO titles (name, medium_type) VALUES (?, ?)",
-        (name, medium_type)
-    )
-    conn.commit()
-    title_id = cur.lastrowid
-    conn.close()
-    print("TITLE CREATED:", title_id)
-    return title_id
+        cur = conn.execute(
+            "INSERT INTO titles (name, medium_type) VALUES (?, ?)",
+            (name, medium_type)
+        )
+        title_id = cur.lastrowid
+        print("TITLE CREATED:", title_id)
+        return title_id
 
 
 # ------------------------------------------
@@ -142,13 +137,10 @@ def add_immersion_session(date_str: str, title_text: str, medium_type: str, acti
         ({col_str})
         VALUES ({placeholders})
     """
-
-    conn = get_connection()
-    cur = conn.execute(sql, data)
-    conn.commit()
-    session_id = cur.lastrowid
-    conn.close()
-    return session_id
+    with connect() as conn:
+        cur = conn.execute(sql, data)
+        session_id = cur.lastrowid
+        return session_id
 
 
 def get_immersion_sessions(
@@ -160,7 +152,6 @@ def get_immersion_sessions(
         limit: int = 200, offset: int = 0
 ) -> list[dict]:
     """Fetch immersion sessions with optional filters."""
-    conn = get_connection()
     sql = "SELECT * FROM immersion_sessions WHERE 1=1"
     params = []
 
@@ -183,16 +174,14 @@ def get_immersion_sessions(
     sql += " ORDER BY date DESC, id DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
 
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
 
 def delete_immersion_session(session_id: int) -> None:
-    conn = get_connection()
-    conn.execute("DELETE FROM immersion_sessions WHERE id = ?", (session_id,))
-    conn.commit()
-    conn.close()
+    with connect() as conn:
+        conn.execute("DELETE FROM immersion_sessions WHERE id = ?", (session_id,))
 
 
 def update_immersion_session(session_id: int, **fields) -> None:
@@ -212,10 +201,8 @@ def update_immersion_session(session_id: int, **fields) -> None:
         WHERE id  = {session_id}
     """
 
-    conn = get_connection()
-    conn.execute(sql, updates)
-    conn.commit()
-    conn.close()
+    with connect() as conn:
+        conn.execute(sql, updates)
 
 
 def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> int:
@@ -237,12 +224,10 @@ def bulk_update_immersion_sessions(session_ids: list[int], **fields) -> int:
         WHERE id  IN ({id_str})
     """
 
-    conn = get_connection()
-    cur = conn.execute(sql, updates)
-    count = cur.rowcount
-    conn.commit()
-    conn.close()
-    return count
+    with connect() as conn:
+        cur = conn.execute(sql, updates)
+        count = cur.rowcount
+        return count
 
 
 def bulk_delete_immersion_sessions(session_ids: list[int]) -> int:
@@ -251,15 +236,13 @@ def bulk_delete_immersion_sessions(session_ids: list[int]) -> int:
         return 0
 
     placeholders = ", ".join("?" for _ in session_ids)
-    conn = get_connection()
-    cur = conn.execute(
-        f"DELETE FROM immersion_sessions WHERE id IN ({placeholders})",
-        session_ids
-    )
-    conn.commit()
-    count = cur.rowcount
-    conn.close()
-    return count
+    with connect() as conn:
+        cur = conn.execute(
+            f"DELETE FROM immersion_sessions WHERE id IN ({placeholders})",
+            session_ids
+        )
+        count = cur.rowcount
+        return count
 
 
 # ------------------------------------------
@@ -287,31 +270,30 @@ def get_daily_summary(target_date: str = None) -> dict:
     """
     if target_date is None:
         target_date = date.today().isoformat()
-    conn = get_connection()
 
-    totals_row = conn.execute("""
-        SELECT
-            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
-            COALESCE(SUM(character_count), 0)   AS total_chars,
-            COUNT(*)                            AS session_count
-        FROM immersion_sessions
-        WHERE date = ?
-    """, (target_date,)).fetchone()
+    with connect() as conn:
+        totals_row = conn.execute("""
+            SELECT
+                COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+                COALESCE(SUM(character_count), 0)   AS total_chars,
+                COUNT(*)                            AS session_count
+            FROM immersion_sessions
+            WHERE date = ?
+        """, (target_date,)).fetchone()
 
-    activity_rows = conn.execute("""
-        SELECT activity_type,
-            COALESCE(SUM(duration_minutes), 0) AS minutes
-        FROM immersion_sessions
-        WHERE date = ?
-        GROUP BY activity_type
-    """, (target_date,)).fetchall()
+        activity_rows = conn.execute("""
+            SELECT activity_type,
+                COALESCE(SUM(duration_minutes), 0) AS minutes
+            FROM immersion_sessions
+            WHERE date = ?
+            GROUP BY activity_type
+        """, (target_date,)).fetchall()
 
-    conn.close()
-    return {
-        **totals_row,
-        "date": target_date,
-        "by_activity": {row["activity_type"]: row["minutes"] for row in activity_rows},
-    }
+        return {
+            **totals_row,
+            "date": target_date,
+            "by_activity": {row["activity_type"]: row["minutes"] for row in activity_rows},
+        }
 
 
 def get_weekly_summary(week_of: str = None) -> dict:
@@ -352,18 +334,17 @@ def get_weekly_summary(week_of: str = None) -> dict:
     week_end = week_start + timedelta(days=6)
     days = [(week_start + timedelta(days=i)).isoformat() for i in range(7)]
 
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT  date,
-                activity_type,
-                COALESCE(SUM(duration_minutes), 0)  AS minutes,
-                COALESCE(SUM(character_count), 0)  AS chars,
-                COUNT(*) AS sessions
-        FROM immersion_sessions
-        WHERE date >= ? AND date <= ?
-        GROUP BY date, activity_type
-    """, (week_start.isoformat(), week_end.isoformat())).fetchall()
-    conn.close()
+    with connect() as conn:
+        rows = conn.execute("""
+            SELECT  date,
+                    activity_type,
+                    COALESCE(SUM(duration_minutes), 0)  AS minutes,
+                    COALESCE(SUM(character_count), 0)  AS chars,
+                    COUNT(*) AS sessions
+            FROM immersion_sessions
+            WHERE date >= ? AND date <= ?
+            GROUP BY date, activity_type
+        """, (week_start.isoformat(), week_end.isoformat())).fetchall()
     # print("GET WEEKLY SUMMARY:\n", [dict(r) for r in rows])
 
     daily_minutes = {d: {"reading": 0, "listening": 0, "both": 0} for d in days}
@@ -405,40 +386,38 @@ def get_weekly_summary(week_of: str = None) -> dict:
 
 
 def get_alltime_totals() -> dict:
-    conn = get_connection()
-    row = conn.execute("""
-        SELECT
-            COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
-            COALESCE(SUM(character_count), 0)   AS total_chars,
-            COUNT(*)                            AS session_count,
-            MIN(date)                           AS first_session,
-            MAX(date)                           AS last_session,
-            COUNT(DISTINCT date)                AS days_since_start,
-            COUNT(DISTINCT title_id)            AS title_count,
-            COALESCE(SUM(episode_count), 0)     AS total_episodes,
-            COALESCE(SUM(page_count), 0)        AS total_pages
-        FROM immersion_sessions
-    """).fetchone()
-    active_days = conn.execute("""
-        SELECT date,
-            COALESCE(SUM(duration_minutes), 0)  AS daily_minutes
-        FROM immersion_sessions
-        GROUP BY date
-        HAVING daily_minutes >= 15
-    """).fetchall()
+    with connect() as conn:
+        row = conn.execute("""
+            SELECT
+                COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
+                COALESCE(SUM(character_count), 0)   AS total_chars,
+                COUNT(*)                            AS session_count,
+                MIN(date)                           AS first_session,
+                MAX(date)                           AS last_session,
+                COUNT(DISTINCT date)                AS days_since_start,
+                COUNT(DISTINCT title_id)            AS title_count,
+                COALESCE(SUM(episode_count), 0)     AS total_episodes,
+                COALESCE(SUM(page_count), 0)        AS total_pages
+            FROM immersion_sessions
+        """).fetchone()
+        active_days = conn.execute("""
+            SELECT date,
+                COALESCE(SUM(duration_minutes), 0)  AS daily_minutes
+            FROM immersion_sessions
+            GROUP BY date
+            HAVING daily_minutes >= 15
+        """).fetchall()
 
-    activity_rows = conn.execute("""
-        SELECT activity_type,
-            COALESCE(SUM(duration_minutes), 0)  AS minutes,
-            COUNT(*)                            AS session_count
-        FROM immersion_sessions
-        GROUP BY activity_type
-    """).fetchall()
+        activity_rows = conn.execute("""
+            SELECT activity_type,
+                COALESCE(SUM(duration_minutes), 0)  AS minutes,
+                COUNT(*)                            AS session_count
+            FROM immersion_sessions
+            GROUP BY activity_type
+        """).fetchall()
 
     # titles_row = conn.execute("SELECT COUNT(*) AS title_count FROM titles WHERE medium_type != 'youtube'").fetchone()
     # print("Num of Titles (excl. youtube):", titles_row['title_count'])
-
-    conn.close()
     return {
         **row,
         "active_days": len(active_days),
@@ -452,7 +431,6 @@ def get_time_by_medium(start_date: str, end_date: str, activity: str = None) -> 
     Returns: [{"medium_type": "novel", "total_minutes": 1234, "session_count": 62}, ...]
     """
     # !TODO! filter by activity
-    conn = get_connection()
     sql = """
         SELECT medium_type,
             COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
@@ -469,9 +447,9 @@ def get_time_by_medium(start_date: str, end_date: str, activity: str = None) -> 
         params.append(end_date)
     sql += " GROUP BY medium_type ORDER BY total_minutes DESC"
 
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_time_by_medium_monthly(start_date: str, end_date: str, activity: str = None) -> dict:
@@ -480,7 +458,6 @@ def get_time_by_medium_monthly(start_date: str, end_date: str, activity: str = N
     Returns: {"2026-04": {"novel": 1234, "anime": 234,...}, "2026-05": {...}, ...}
     """
     # !TODO! filter by activity
-    conn = get_connection()
     sql = """
         SELECT strftime('%Y-%m', date) AS month,
             medium_type,
@@ -497,8 +474,8 @@ def get_time_by_medium_monthly(start_date: str, end_date: str, activity: str = N
         params.append(end_date)
     sql += " GROUP BY month, medium_type ORDER BY month DESC"
 
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
     print("STACKED TIME BY MEDIUM:", [dict(r) for r in rows])
 
     # pivot: convert rows into {month: {medium_a: X, medium_b: Y, medium_c: Z, ...}}
@@ -518,8 +495,6 @@ def get_activity_breakdown(start_date: str, end_date: str, group_by="month") -> 
     Total minutes grouped by activity
     Returns: {"2026-04": {"reading": 120, "listening": 80, "both": 30, "session_count": 40}, ... }
     """
-    conn = get_connection()
-
     if group_by == "week":
         period_expr = "date(date, 'weekday 0', '-6 days')"
     elif group_by == "month":
@@ -543,9 +518,9 @@ def get_activity_breakdown(start_date: str, end_date: str, group_by="month") -> 
         sql += " AND date <= ?"
         params.append(end_date)
     sql += " GROUP BY period, activity_type ORDER BY period"
-    rows = conn.execute(sql, params).fetchall()
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
     # print(f"ACTIVITY BREAKDOWN ({len(rows)}):", [dict(r) for r in rows])
-    conn.close()
 
     # pivot: convert rows into {period: {reading: X, listening: Y, both: Z, session_count: 123}}
     from collections import defaultdict
@@ -565,7 +540,6 @@ def get_daily_totals(start_date: str, end_date: str) -> list[dict]:
     Daily aggregates for time trend charts
     Returns: [{"date": "2026-04-01", "total_minutes": 78, "total_chars": 3665, "session_count": 2}, ...]
     """
-    conn = get_connection()
     sql = """
         SELECT date,
             COALESCE(SUM(duration_minutes), 0)  AS total_minutes,
@@ -582,13 +556,12 @@ def get_daily_totals(start_date: str, end_date: str) -> list[dict]:
         sql += " AND date <= ?"
     sql += " GROUP BY date ORDER BY date"
 
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_reading_speed_data(start_date: str, end_date: str) -> list[dict]:
-    conn = get_connection()
     sql = """
         SELECT  date, title_text, title_id, medium_type, reading_direction,
                 duration_minutes, character_count
@@ -607,7 +580,7 @@ def get_reading_speed_data(start_date: str, end_date: str) -> list[dict]:
         sql += " AND date <= ?"
     sql += " ORDER BY date"
 
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
+    with connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
 
