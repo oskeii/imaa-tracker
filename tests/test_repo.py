@@ -1,6 +1,7 @@
-import pytest
-from datetime import date, timedelta
 import json
+from datetime import date, timedelta
+import pytest
+
 import db
 import repo
 
@@ -26,7 +27,7 @@ def sample_title():
 
 @pytest.fixture
 def sample_sessions(sample_title):
-    """Create several sessions with varied data for testing queries"""
+    """Create several sessions with varied data for testing queries. Returns list of IDs"""
     today = date.today()
     sessions = [
         # Today: 2 anime sessions
@@ -83,14 +84,8 @@ class TestTitles:
         anime_titles = repo.get_all_titles("anime")
         assert len(anime_titles) == 2
         assert all(t["medium_type"] == "anime" for t in anime_titles)
-
-    def test_same_name_different_medium_are_distinct(self):
-        """Re:Zero as anime and LN should be separate titles"""
-        id1 = repo.add_title("Re:Zero", "anime")
-        id2 = repo.add_title("Re:Zero", "light_novel")
-        assert id1 != id2
-
-        assert len(repo.get_all_titles()) == 2
+        assert len(repo.get_all_titles("light_novel")) == 1
+        assert len(repo.get_all_titles("drama")) == 0
 
     def test_get_or_create_title_existing(self):
         """Should return existing title ID without creating a duplicate"""
@@ -107,6 +102,14 @@ class TestTitles:
         assert len(titles) == 1
         assert titles[0]["id"] == id1
         assert titles[0]["name"] == "New Title"
+
+    def test_same_name_different_medium_are_distinct(self):
+        """Re:Zero as anime and LN should be separate titles"""
+        id1 = repo.add_title("Re:Zero", "anime")
+        id2 = repo.add_title("Re:Zero", "light_novel")
+        assert id1 != id2
+
+        assert len(repo.get_all_titles()) == 2
 
 
 # ==============================
@@ -130,10 +133,11 @@ class TestImmersionSessions:
         assert sessions[0]["title_text"] == "Test Anime"
         assert sessions[0]["date"] == "2026-04-01"
         assert sessions[0]["duration_minutes"] is None
+        assert sessions[0]["title_id"] is None
 
     def test_add_session_full(self):
         """All fields should be stored and retrievable."""
-        urls = json.dumps(["https://youtube.com/watch?v-abc123"])
+        urls = json.dumps(["https://youtube.com/watch?v=abc123"])
         session_id = repo.add_immersion_session(
             date_str="2026-04-01",
             medium_type="youtube",
@@ -158,9 +162,39 @@ class TestImmersionSessions:
         """Date filtering should be inclusive on both ends"""
         today = date.today()
         yesterday = (today - timedelta(days=1))
+        valid_dates = (today.isoformat(), yesterday.isoformat())
         sessions = repo.get_immersion_sessions(start_date=yesterday.isoformat(), end_date=today.isoformat())
         # All 3 sessions from yesterday and today
         assert len(sessions) == 3
+        assert sessions[0]["date"] in valid_dates
+        assert sessions[1]["date"] in valid_dates
+        assert sessions[2]["date"] in valid_dates
+
+    def test_filter_after_start_date(self, sample_sessions):
+        """Should return all sessions occurring on/after start_date (no end_date filter)"""
+        today = date.today()
+        yesterday = (today - timedelta(days=1))
+        valid_dates = (today.isoformat(), yesterday.isoformat())
+        sessions = repo.get_immersion_sessions(start_date=yesterday.isoformat())
+        # All 3 sessions from yesterday and today
+        assert len(sessions) == 3
+        assert sessions[0]["date"] in valid_dates
+        assert sessions[1]["date"] in valid_dates
+        assert sessions[2]["date"] in valid_dates
+
+    def test_filter_before_end_date(self, sample_sessions):
+        """Should return all sessions occurring on/before end_date (no start_date filter)"""
+        today = date.today()
+        yesterday = (today - timedelta(days=1))
+        valid_dates = (
+            yesterday.isoformat(),
+            (today - timedelta(days=3)).isoformat()
+        )
+        sessions = repo.get_immersion_sessions(end_date=yesterday.isoformat())
+        # All 2 sessions from yesterday
+        assert len(sessions) == 2
+        assert sessions[0]["date"] in valid_dates
+        assert sessions[1]["date"] in valid_dates
 
     def test_filter_by_medium(self, sample_sessions):
         ln_sessions = repo.get_immersion_sessions(medium_type="light_novel")
@@ -170,17 +204,37 @@ class TestImmersionSessions:
         anime_sessions = repo.get_immersion_sessions(medium_type="anime")
         assert len(anime_sessions) == 2
 
+        drama_sessions = repo.get_immersion_sessions(medium_type="drama")
+        assert len(drama_sessions) == 0
+
     def test_filter_by_activity(self, sample_sessions):
-        sessions = repo.get_immersion_sessions(activity_type="both")
-        assert len(sessions) == 1
-        assert sessions[0]["title_text"] == "AMNESIA"
+        both = repo.get_immersion_sessions(activity_type="both")
+        assert len(both) == 1
+        assert both[0]["title_text"] == "AMNESIA"
+
+        listening = repo.get_immersion_sessions(activity_type="listening")
+        assert len(listening) == 2
+        assert listening[0]["medium_type"] == "anime"
+        assert listening[1]["medium_type"] == "anime"
+
+    def test_sessions_ordered_by_date_desc(self, sample_sessions):
+        """Most recent sessions listed first"""
+        sessions = repo.get_immersion_sessions()
+        dates = [s["date"] for s in sessions]
+        assert dates == sorted(dates, reverse=True)
 
     def test_delete_session(self, sample_sessions):
         before = repo.get_immersion_sessions()
         assert len(before) == 4
 
-        repo.delete_immersion_session(sample_sessions[0])
+        sid_to_del = 2
+        before_ids = [s["id"] for s in before]
+        assert sid_to_del in before_ids
+
+        repo.delete_immersion_session(sid_to_del)
 
         after = repo.get_immersion_sessions()
         assert len(after) == 3
+        after_ids = [s["id"] for s in after]
+        assert sid_to_del not in after_ids
 
