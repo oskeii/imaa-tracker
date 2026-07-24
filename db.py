@@ -7,6 +7,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from constants import ENUMS
+
 
 SCHEMA_VERSION = 3
 DB_NAME = "imaa_tracker.db"  # relative path
