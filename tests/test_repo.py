@@ -2,23 +2,12 @@ import json
 from datetime import date, timedelta
 import pytest
 
-import db
 import repo
 
 
 # ==============================
 # FIXTURES
 # ==============================
-@pytest.fixture(autouse=True)
-def test_db(tmp_path, monkeypatch):
-    """Create a fresh database for each test."""
-    test_db_path = tmp_path / "test.db"
-    # monkeypatch DB_NAME for repo's db.get_connection() calls
-    monkeypatch.setattr(db, "DB_NAME", str(test_db_path))
-    db.init_db(str(test_db_path))
-    yield str(test_db_path)
-
-
 @pytest.fixture
 def sample_title():
     """Create a single title and return its ID"""

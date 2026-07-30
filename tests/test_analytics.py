@@ -3,7 +3,6 @@
 from datetime import date, timedelta
 import pytest
 
-import db
 import repo
 
 # A fixed week
@@ -15,16 +14,6 @@ SUN = "2026-06-07"
 NEXT_MON = "2026-06-08"
 PREV_WEEK = "2026-05-27"
 JULY = "2026-07-02"
-
-
-@pytest.fixture(autouse=True)
-def test_db(tmp_path, monkeypatch):
-    """Create a fresh database for each test."""
-    test_db_path = tmp_path / "test.db"
-    # monkeypatch DB_NAME for repo's db.get_connection() calls
-    monkeypatch.setattr(db, "DB_NAME", str(test_db_path))
-    db.init_db(str(test_db_path))
-    yield str(test_db_path)
 
 
 @pytest.fixture()
