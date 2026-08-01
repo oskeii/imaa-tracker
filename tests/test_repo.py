@@ -373,3 +373,136 @@ class TestImmersionSessions:
         after_ids = [s["id"] for s in after]
         assert sid_to_del not in after_ids
 
+    class TestSessionEdits:
+        """Updates and bulk operations on immersion_sessions"""
+
+        def test_update_single_field(self, sample_sessions):
+            """Updating a single field leaves all others untouched"""
+            session_id = sample_sessions[0]
+            before = repo.get_immersion_session_by_id(session_id)
+
+            repo.update_immersion_session(session_id, duration_minutes=99)
+            after = repo.get_immersion_session_by_id(session_id)
+            assert after["duration_minutes"] == 99
+            # Verify other fields unchanged
+            assert after["title_text"] == before["title_text"]
+            assert after["medium_type"] == before["medium_type"]
+            assert after["activity_type"] == before["activity_type"]
+            assert after["created_at"] == before["created_at"]
+
+        def test_update_multiple_fields(self, sample_sessions):
+            session_id = sample_sessions[0]
+            before = repo.get_immersion_session_by_id(session_id)
+
+            repo.update_immersion_session(
+                session_id,
+                duration_minutes=60,
+                notes="updated note",
+                activity_type="reading",
+            )
+            after = repo.get_immersion_session_by_id(session_id)
+            assert after["duration_minutes"] == 60
+            assert after["activity_type"] == "reading"
+            assert after["notes"] == "updated note"
+            # Verify other fields unchanged
+            assert after["medium_type"] == before["medium_type"]
+            assert after["title_text"] == before["title_text"]
+            assert after["created_at"] == before["created_at"]
+
+        def test_update_to_null(self, sample_sessions):
+            """Setting a field to None should null the DB"""
+            session_id = sample_sessions[2]
+            before_char_count = repo.get_immersion_session_by_id(session_id)["character_count"]
+            repo.update_immersion_session(session_id, character_count=before_char_count+500)
+            after_change = repo.get_immersion_session_by_id(session_id)
+            assert after_change["character_count"] == before_char_count + 500
+
+            repo.update_immersion_session(session_id, character_count=None)
+            after_null = repo.get_immersion_session_by_id(session_id)
+            assert after_null["character_count"] is None
+
+        def test_update_ignores_unknown_fields(self, sample_sessions):
+            """Only valid/known fields are updated. Anything else is ignored, without throwing errors."""
+            session_id = sample_sessions[0]
+            before = repo.get_immersion_session_by_id(session_id)
+
+            repo.update_immersion_session(
+                session_id,
+                duration_minutes=43,
+                id=999,                             # ignored, cannot be overwritten
+                this_field_is_made_up="abc123",     # ignored, no such field
+            )
+            after = repo.get_immersion_session_by_id(session_id)
+            assert after["id"] == session_id
+            assert after["duration_minutes"] == 43
+
+            assert after["title_text"] == before["title_text"]
+            assert after["created_at"] == before["created_at"]
+
+        def test_update_with_no_valid_fields_is_ignored(self, sample_sessions):
+            """If no valid fields passed, update should do nothing (not crash)"""
+            session_id = sample_sessions[0]
+            before = repo.get_immersion_session_by_id(session_id)
+
+            repo.update_immersion_session(
+                session_id,
+                this_field_is_made_up="abc123",     # ignored, no such field
+                its_my_birthday=False
+            )
+            after = repo.get_immersion_session_by_id(session_id)
+            assert dict(after) == dict(before)
+
+        def test_bulk_update_applies_to_all(self, sample_sessions):
+            ids = sample_sessions[:3]
+            count = repo.bulk_update_immersion_sessions(
+                ids, activity_type="both", notes="batch updated"
+            )
+            assert count == 3
+
+            updated = [repo.get_immersion_session_by_id(i) for i in ids]
+            assert all(s["activity_type"] == "both" for s in updated)
+            assert all(s["notes"] == "batch updated" for s in updated)
+
+        def test_bulk_update_other_sessions_unaffected(self, sample_sessions):
+            """Sessions not in the ID list are left untouched"""
+            if len(sample_sessions) < 2:
+                pytest.skip("Need at least 2 sample sessions")
+            target_id = sample_sessions[0]
+            other_id = sample_sessions[1]
+            other_before = repo.get_immersion_session_by_id(other_id)
+
+            repo.bulk_update_immersion_sessions([target_id], notes="this is the target")
+
+            other_after = repo.get_immersion_session_by_id(other_id)
+            assert other_after["notes"] == other_before["notes"]
+
+        def test_bulk_update_empty_list(self, sample_sessions):
+            before_notes = [s["notes"] for s in repo.get_immersion_sessions()]
+            count = repo.bulk_update_immersion_sessions([], notes="X")
+            assert count == 0
+
+            after_notes = [s["notes"] for s in repo.get_immersion_sessions()]
+            assert after_notes == before_notes
+
+        def test_bulk_update_empty_fields(self, sample_sessions):
+            count = repo.bulk_update_immersion_sessions(sample_sessions, hello="X")
+            assert count == 0
+
+        def test_bulk_delete(self, sample_sessions):
+            before = repo.get_immersion_sessions()
+            to_delete = sample_sessions[:2]
+
+            count = repo.bulk_delete_immersion_sessions(to_delete)
+            assert count == 2
+
+            after = repo.get_immersion_sessions()
+            assert len(after) == len(before) - 2
+            remaining_ids = {s["id"] for s in after}
+            assert remaining_ids.isdisjoint(to_delete)
+
+        def test_bulk_delete_empty_list(self, sample_sessions):
+            before_count = len(repo.get_immersion_sessions())
+            count = repo.bulk_delete_immersion_sessions([])
+            after_count = len(repo.get_immersion_sessions())
+            assert count == 0
+            assert after_count == before_count
