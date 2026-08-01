@@ -47,6 +47,75 @@ def sample_sessions(sample_title):
     return ids
 
 
+@pytest.fixture
+def sample_titles():
+    """Create multiple titles, with similarities in names. Returns list of title IDs"""
+    def add(name, medium, **kwargs):
+        return repo.add_title(name, medium, **kwargs)
+
+    return [
+        # "君" ("kimi") matches:
+        #   total: 7, LN: 1, manga: 1, anime: 5
+        add("君の名は", medium="anime"),
+        add("君の膵臓をたべたい", medium="anime"),
+        add("君の膵臓をたべたい", medium="light_novel"),
+        add("四月は君の噓", medium="anime"),
+        add("君に届け", medium="anime"),
+        add("正反対な君と僕", medium="anime"),
+        add("正反対な君と僕", medium="manga"),
+
+        # "かぐや" ("kaguya") matches:
+        #   total: 3, manga: 1, anime: 2
+        # "姫" ("hime") matches:
+        #   total: 2, anime: 2
+        add("かぐや様は告らせたい", medium="anime"),
+        add("かぐや様は告らせたい", medium="manga"),
+        add("超かぐや姫", medium="anime"),
+        add("もののけ姫", medium="anime"),
+
+        # "猫" ("neko") matches:
+        #     total: 2, anime: 2
+        add("猫の恩返し", medium="anime"),
+        add("泣きたい私は猫をかぶる", medium="anime"),
+
+        # "恋" ("koi")
+        #     total: 5, manga: 2, anime: 3
+        add("中二病でも恋がしたい", medium="anime"),
+        add("山田くんとLv999の恋をする", medium="anime"),
+        add("山田くんとLv999の恋をする", medium="manga"),
+        add("ヲタクに恋は難しい", medium="anime"),
+        add("ヲタクに恋は難しい", medium="manga"),
+
+        # "さくら" ("sakura")
+        #     total: 2, anime: 2
+        add("カードキャプターさくら", medium="anime"),
+        add("さくら荘のペットな彼女", medium="anime"),
+
+        # "ゲーム" ("geemu")
+        #     total: 3, LN: 1, manga: 1, anime: 1
+        add("ノーゲーム・ノーライフ", medium="anime"),
+        add("ノーゲーム・ノーライフ", medium="light_novel"),
+        add("ダーウィンズゲーム", medium="manga"),
+
+        # "戦記" ("senki")
+        #     total: 3, manga: 1, anime: 2
+        add("幼女戦記", medium="anime"),
+        add("アルスラーン戦記", medium="anime"),
+        add("アルスラーン戦記", medium="manga"),
+
+        # "nana" matches: (will not match romaji/hiragana/katakana/kanji)
+        #   "なな": 0
+        #   "ナナ": 2 (1 manga, 1 anime)
+        #   "七": 1 (anime)
+        #   "nana": 1 (anime)
+
+        add("七つの大罪", medium="anime"),
+        add("無能のナナ", medium="anime"),
+        add("無能のナナ", medium="manga"),
+        add("NANA", medium="anime"),
+    ]
+
+
 # ==============================
 # TITLE TESTS
 # ==============================
@@ -75,6 +144,72 @@ class TestTitles:
         assert all(t["medium_type"] == "anime" for t in anime_titles)
         assert len(repo.get_all_titles("light_novel")) == 1
         assert len(repo.get_all_titles("drama")) == 0
+
+    @pytest.mark.parametrize("query,medium_type,expected", [
+        # --- "君" (kimi): 7 total; anime 5, manga 1, light_novel 1 ---
+        ("君", None, 7),
+        ("君", "anime", 5),
+        ("君", "manga", 1),
+        ("君", "light_novel", 1),
+        ("君の", None, 4),           # narrower substring drops 正反対な君と僕 (×2) and 君に届け
+
+        # --- kaguya / hime cluster ---
+        ("かぐや", None, 3),          # かぐや様(×2) + 超かぐや姫
+        ("姫", None, 2),             # 超かぐや姫, もののけ姫 (both anime)
+        ("かぐや姫", None, 1),         # only 超かぐや姫 has both substrings adjacent
+        ("姫", "manga", 0),          # filter zeroes out: 姫 titles are all anime
+
+        # --- koi ---
+        ("恋", None, 5),
+        ("恋", "manga", 2),
+
+        # --- geemu (suffix + infix) ---
+        ("ゲーム", None, 3),
+        ("ノーゲーム", None, 2),        # ダーウィンズゲーム drops out (ノー not present)
+
+        # --- senki (suffix match) ---
+        ("戦記", None, 3),           # 幼女戦記, アルスラーン戦記 ×2
+        ("戦記", "anime", 2),
+
+        # --- single-cluster sanity ---
+        ("猫", None, 2),
+        ("さくら", None, 2),
+
+        # --- writing-system boundaries: "nana" is NOT cross-script ---
+        ("七", None, 1),            # 七つの大罪
+        ("ナナ", None, 2),           # 無能のナナ ×2 (katakana)
+        ("なな", None, 0),           # hiragana matches nothing — LIKE is not kana-insensitive
+        ("nana", None, 1),          # ASCII, lowercase -> matches "NANA" (LIKE IS ASCII-case-insensitive)
+        ("NANA", None, 1),          # ASCII, exact case -> same single match
+
+        # --- edge cases ---
+        ("", None, 20),             # empty query -> %%  matches all 30, but LIMIT 20 caps it
+        ("ゾンビ", None, 0),          # absent substring -> no matches
+
+    ])
+    def test_search_titles(self, sample_titles, query, medium_type, expected):
+        """Substring search should match partial names"""
+        results = repo.search_titles(query, medium_type=medium_type)
+        assert len(results) == expected
+
+    def test_search_titles_ordered_by_name(self, sample_titles):
+        queries = [
+            "記",  # アルスラーン戦記 ×2, 幼女戦記
+            "ゲーム"  # ダーウィンズゲーム, ノーゲーム・ノーライフ ×2
+        ]
+        for q in queries:
+            results = repo.search_titles(q)
+            names = [r["name"] for r in results]
+            assert names == sorted(names)
+
+    def test_search_titles_like_wildcards_not_escaped(self, sample_titles):
+        """
+        (Characterization)
+        query is interpolated into %{query}% without escaping LIKE metacharacters.
+        '_' and '%' act as wildcards rather than literals; both match every title
+        """
+        assert len(repo.search_titles('_')) == 20
+        assert len(repo.search_titles('%')) == 20
 
     def test_get_or_create_title_existing(self):
         """Should return existing title ID without creating a duplicate"""
@@ -146,6 +281,17 @@ class TestImmersionSessions:
         assert sessions[0]["urls_json"] == urls
         assert sessions[0]["notes"] == "Interesting video about cooking"
         assert sessions[0]["reading_direction"] is None
+
+    def test_get_session_by_id(self, sample_sessions):
+        sessions = repo.get_immersion_sessions()
+        for s in sessions[:3]:
+            sid = s["id"]
+            session_by_id = repo.get_immersion_session_by_id(sid)
+            assert session_by_id["id"] == s["id"]
+            assert session_by_id["date"] == s["date"]
+            assert session_by_id["duration_minutes"] == s["duration_minutes"]
+            assert session_by_id["title_text"] == s["title_text"]
+            assert session_by_id["created_at"] == s["created_at"]
 
     def test_filter_by_date_range(self, sample_sessions):
         """Date filtering should be inclusive on both ends"""
