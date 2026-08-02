@@ -65,20 +65,35 @@ just the minutes.
 ### Project Structure
 ```
 imaa-tracker/
+├── main.py                 # you run this: `python main.py`
+├── requirements.txt
+├── imaa_tracker.db
+├── README.md
+├── docs/
+│
 ├── scripts/ 
 │   ├── __init__.py    
 │   ├── demo.json
 │   ├── demo_to_db.py       # Fills db with demo data from demo.json
 │   ├── generate_demo.py    # Generates demo.json
 │   └── sheets_to_db.py     # Migrates logs from immersion_log.xlsx to db
-├── tests/   
-├── widgets/   
-├── app.py 
-├── imaa_tracker.db     # Not tracked in git
-├── db.py  
-├── repo.py             # repository layer (db queries)
-├── requirements.txt
-└── README.md
+├── tests/
+│
+└── imaa_tracker/           # the package
+    ├── __init__.py
+    ├── app.py 
+    ├── core/
+    │   ├── __init__.py
+    │   ├── constants.py
+    │   ├── db.py
+    │   ├── migrations/
+    │   ├── repo/      
+    │   ├── services/      
+    │   └── utils/
+    └── ui/                 # all the Qt
+        ├── __init__.py
+        ├── main_window.py
+        └── widgets/
 ```
 
 ## Project Status
@@ -130,7 +145,7 @@ pip install -r requirements.txt
 
 **3. Start application:**
 ```bash
-python app.py
+python main.py
 
 # Optional: load demo data to see the app with populated charts
 python -m scripts.demo_to_db scripts/demo.json
