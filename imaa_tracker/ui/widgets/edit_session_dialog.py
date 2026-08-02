@@ -7,9 +7,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, pyqtSignal, QStringListModel
 import json
 
+from imaa_tracker.core import repo
+from imaa_tracker.core.constants import ENUMS
 from .log_form import MEDIUM_DETAILS
-from constants import ENUMS
-import repo
 
 # Fields that are universal (always editable, even across mixed mediums)
 UNIVERSAL_FIELDS = {

@@ -80,7 +80,7 @@ class ImmersionTimeTrend(PgChartCard):
         self.plot_widget.setLabel("left", "Hours")
 
     def _draw(self):
-        import repo
+        from imaa_tracker.core import repo
         import pandas as pd
 
         data = repo.get_daily_totals(
@@ -161,7 +161,7 @@ class ReadingSpeedTrend(PgChartCard):
         self.plot_widget.setLabel("left", "Chars/hr")
 
     def _draw(self):
-        import repo
+        from imaa_tracker.core import repo
         import pandas as pd
 
         data = repo.get_reading_speed_data(

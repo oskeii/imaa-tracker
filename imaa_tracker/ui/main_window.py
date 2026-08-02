@@ -1,13 +1,13 @@
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMainWindow, QTabWidget
 
-from widgets import LogForm, SessionHistoryWidget, DashboardContainer
-from widgets.summary_cards import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
-from widgets.charts_mpl import TimeByMediumPieChart, ActivityRatioChart
-from widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
+from .widgets import LogForm, SessionHistoryWidget, DashboardContainer
+from .widgets.summary_cards import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
+from .widgets.charts_mpl import TimeByMediumPieChart, ActivityRatioChart
+from .widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
 
-from widgets.snapshot_export import save_dashboard_snapshot
-from widgets.backup_action import save_database_backup
+from .widgets.snapshot_export import save_dashboard_snapshot
+from .widgets.backup_action import save_database_backup
 
 
 def create_dashboard() -> DashboardContainer:

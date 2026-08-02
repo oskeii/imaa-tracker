@@ -1,6 +1,6 @@
 import pytest
 
-import db
+from imaa_tracker.core import db
 
 
 @pytest.fixture(autouse=True)

@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 import pytest
 
-import repo
+from imaa_tracker.core import repo
 
 # A fixed week
 MON = "2026-06-01"
@@ -390,7 +390,7 @@ class TestTimeByMediumMonthly:
 
     def test_time_by_medium_monthly_pads_all_mediums_with_zeros(self, dataset):
         out = repo.get_time_by_medium_monthly(PREV_WEEK, JULY)
-        from constants import ENUMS
+        from imaa_tracker.core.constants import ENUMS
         assert set(out["2026-05"].keys()) == set(ENUMS["MEDIUM_TYPES"])
         assert out["2026-05"]["drama"] == 0
 

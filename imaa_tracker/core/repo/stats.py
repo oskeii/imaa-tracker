@@ -1,8 +1,8 @@
 """Dashboard aggregation queries. Read-only reports."""
 from datetime import date, timedelta
 
-from constants import ENUMS
-from db import connect
+from imaa_tracker.core.constants import ENUMS
+from imaa_tracker.core.db import connect
 
 
 def get_daily_summary(target_date: str = None) -> dict:

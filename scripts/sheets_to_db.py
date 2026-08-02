@@ -13,8 +13,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import pandas as pd
 
-from db import get_connection, DB_NAME
-from migrations import open_database
+from imaa_tracker.core.db import get_connection, DB_NAME
+from imaa_tracker.core.migrations import open_database
 
 # map old spreadsheet medium names to new medium_type values
 LEGACY_MEDIUM_MAP = {

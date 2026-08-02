@@ -1,14 +1,15 @@
+from datetime import date
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtWidgets import (
     QWidget, QFrame, QHBoxLayout, QVBoxLayout,
     QLabel
 )
-from .dashboard import DashboardCard
-from utils.formatting import format_minutes, format_duration_str
 
-from datetime import date
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from imaa_tracker.core.utils.formatting import format_minutes, format_duration_str
+from .dashboard import DashboardCard
 
 ACTIVITY_COLORS = {
     "reading": "#F6BD16",
@@ -127,7 +128,7 @@ class DailySummaryCard(DashboardCard):
         ))
 
     def refresh(self):
-        import repo
+        from imaa_tracker.core import repo
         summary = repo.get_daily_summary(target_date=self.filters.get("target_date"))
 
         d = date.fromisoformat(summary["date"])
@@ -210,7 +211,7 @@ class WeeklySummaryCard(DashboardCard):
         layout.addWidget(self._canvas)
 
     def refresh(self):
-        import repo
+        from imaa_tracker.core import repo
         summary = repo.get_weekly_summary(week_of=self.filters.get("target_date"))
         print("WEEKLY SUMMARY:", summary)
 
@@ -315,7 +316,7 @@ class AllTimeTotalsCard(DashboardCard):
         ))
 
     def refresh(self):
-        import repo
+        from imaa_tracker.core import repo
         totals = repo.get_alltime_totals()
         print("ALL-TIME TOTALS:", totals)
 

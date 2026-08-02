@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
-import db
+from imaa_tracker.core import db
 
 
 def save_database_backup(parent=None):

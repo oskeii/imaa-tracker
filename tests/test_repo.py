@@ -2,7 +2,7 @@ import json
 from datetime import date, timedelta
 import pytest
 
-import repo
+from imaa_tracker.core import repo
 
 
 # ==============================

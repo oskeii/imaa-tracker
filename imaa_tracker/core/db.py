@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from constants import ENUMS
+from imaa_tracker.core.constants import ENUMS
 
 
 SCHEMA_VERSION = 3

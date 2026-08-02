@@ -19,8 +19,8 @@ import sqlite3
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
-from db import get_connection, DB_NAME
-from migrations import open_database
+from imaa_tracker.core.db import get_connection, DB_NAME
+from imaa_tracker.core.migrations import open_database
 
 
 def days_ago_to_iso(days: int, reference: date = None) -> str:

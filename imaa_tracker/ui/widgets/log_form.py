@@ -6,9 +6,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, pyqtSignal, QStringListModel
 import json
 
+from imaa_tracker.core import repo
+from imaa_tracker.core.constants import ENUMS
 from .stopwatch import Stopwatch
-from constants import ENUMS
-import repo
 
 # form display name, default activity, and relevant metric fields for each medium type
 MEDIUM_DETAILS = {

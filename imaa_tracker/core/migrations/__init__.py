@@ -1,7 +1,7 @@
 from contextlib import closing
 from datetime import datetime
 
-import db
+from imaa_tracker.core import db
 from . import m001_goal_flags, m002_settings, m003_enum_checks
 
 # APPEND ONLY (version, description, upgrade_function)

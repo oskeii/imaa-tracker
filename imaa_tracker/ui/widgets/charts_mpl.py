@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import pandas as pd
 
+from imaa_tracker.core.constants import ENUMS
 from .dashboard import DashboardCard
-from constants import ENUMS
 
 MEDIUM_COLORS = {
     "anime":        "#5B8FF9",
@@ -145,7 +145,7 @@ class TimeByMediumPieChart(MplChartCard):
         super().__init__("Time by Medium", figsize=(8, 4), parent=parent)
 
     def _draw(self):
-        import repo
+        from imaa_tracker.core import repo
         data = repo.get_time_by_medium(
             self.filters.get("start_date"),
             self.filters.get("end_date"),
@@ -194,7 +194,7 @@ class TimeByMediumBarChart(MplChartCard):  # !TODO!
         super().__init__("Monthly Time by Medium", figsize=(8, 8), parent=parent)
 
     def _draw(self):
-        import repo
+        from imaa_tracker.core import repo
         import numpy as np
         data = repo.get_time_by_medium_monthly(
             self.filters.get("start_date"),
@@ -241,7 +241,7 @@ class ActivityRatioChart(MplChartCard):
         self.filters["group_by"] = group_by
 
     def _draw(self):
-        import repo
+        from imaa_tracker.core import repo
         import numpy as np
         data = repo.get_activity_breakdown(
             self.filters.get("start_date"),

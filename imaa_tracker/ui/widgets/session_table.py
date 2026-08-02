@@ -1,12 +1,13 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableView, QHeaderView, QMessageBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QTableView, QMessageBox,
     QLabel, QDateEdit, QComboBox, QPushButton, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
 from .edit_session_dialog import EditSessionDialog
-from constants import ENUMS
-from utils.formatting import format_minutes
-import repo
+
+from imaa_tracker.core import repo
+from imaa_tracker.core.constants import ENUMS
+from imaa_tracker.core.utils.formatting import format_minutes
 
 # Column definitions: (header_text, dict_key, alignment  # !TODO!
 COLUMNS = [

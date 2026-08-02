@@ -1,6 +1,6 @@
 """Titles - the catalogue of media the user immerses in."""
-from constants import ENUMS
-from db import connect
+from imaa_tracker.core.constants import ENUMS
+from imaa_tracker.core.db import connect
 
 TITLES_COLS = {
     "name": {"type": str},

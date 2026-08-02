@@ -1,6 +1,6 @@
 """Immersion sessions"""
-from constants import ENUMS
-from db import connect
+from imaa_tracker.core.constants import ENUMS
+from imaa_tracker.core.db import connect
 
 IMMERSION_SESSIONS_COLS = {
     "date": {
