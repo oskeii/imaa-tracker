@@ -1,10 +1,12 @@
+from PyQt6.QtWidgets import QVBoxLayout
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMainWindow, QTabWidget
+from PyQt6.QtWidgets import QMainWindow, QTabWidget, QWidget
 
-from .widgets import LogForm, SessionHistoryWidget, DashboardContainer
+from .widgets import LogForm, SessionHistoryWidget, DashboardContainer, GoalsTab
 from .widgets.summary_cards import DailySummaryCard, AllTimeTotalsCard, WeeklySummaryCard
 from .widgets.charts_mpl import TimeByMediumPieChart, ActivityRatioChart
 from .widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
+from .widgets.goal_notifs import GoalsStrip, AchievementNotifier
 
 from .widgets.snapshot_export import save_dashboard_snapshot
 from .widgets.backup_action import save_database_backup
@@ -38,21 +40,32 @@ class MainWindow(QMainWindow):
         self.log_form = LogForm()
         self.session_history = SessionHistoryWidget()
         self.dashboard = create_dashboard()
+        self.goals_tab = GoalsTab()
+        self.goals_strip = GoalsStrip()
+        self.achievement_notifier = AchievementNotifier(self)
 
-        self.tabs.addTab(self.log_form, "Log Session")
+        # Wrap goals strip and log form
+        log_tab = QWidget()
+        log_tab_layout = QVBoxLayout(log_tab)
+        log_tab_layout.setContentsMargins(0, 0, 0, 0)
+        log_tab_layout.addWidget(self.goals_strip)
+        log_tab_layout.addWidget(self.log_form)
+
+        self.tabs.addTab(log_tab, "Log Session")
         self.tabs.addTab(self.dashboard, "Dashboard")
         self.tabs.addTab(self.session_history, "History")
+        self.tabs.addTab(self.goals_tab, "Goals")
 
         # --- Cross-tab communication ---
-        # new session logged -> refresh session history table + dashboard
-        self.log_form.sig_session_logged.connect(self.session_history.refresh)
-        self.log_form.sig_session_logged.connect(self.dashboard.refresh_all)
+        self.log_form.sig_session_logged.connect(self._on_session_logged)
+        self.goals_tab.sig_goals_changed.connect(self.goals_strip.refresh)
+        # !! need signal from session edit/delete too
 
         # --- Status bar ---
         self.statusBar().showMessage("Ready")
 
         # --- Actions ---
-        export_action = QAction("Export as PNG", self)
+        export_action = QAction("Dashboard: Export as PNG", self)
         export_action.triggered.connect(lambda: save_dashboard_snapshot(self.dashboard, self))
 
         backup_action = QAction("Back Up Database...", self)
@@ -65,4 +78,17 @@ class MainWindow(QMainWindow):
         file_menu.addAction(export_action)
         file_menu.addSeparator()
         file_menu.addAction(backup_action)
+
+
+    def _on_session_logged(self):
+        from imaa_tracker.core.services import goals_service as gs
+
+        # Evaluate goals against newly-updated session data
+        newly_achieved = gs.check_and_log_goals()
+        self.achievement_notifier.notify(newly_achieved)        
+
+        self.goals_strip.refresh()
+        self.goals_tab.refresh()
+        self.session_history.refresh()
+        self.dashboard.refresh_all()
 

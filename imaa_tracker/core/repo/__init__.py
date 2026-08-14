@@ -27,3 +27,14 @@ from .stats import (
     get_time_by_medium,
     get_time_by_medium_monthly,
 )
+
+from .goals import (
+    add_goal,
+    get_goals,
+    get_goal_by_id,
+    update_goal,
+    toggle_pinned,
+    toggle_show_on_log,
+    add_milestone,
+    get_milestones,
+)
