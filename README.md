@@ -56,7 +56,7 @@ just the minutes.
 </table>
 
 ### Tech Stack
-- **Python 3.9+** with **PyQt6** for the desktop GUI
+- **Python 3.10+** with **PyQt6** for the desktop GUI
 - **SQLite** (via `sqlite3`) for local data persistence
 - **pandas** and **numpy** for data aggregation and analysis
 - **matplotlib** and **pyqtgraph** for data visualization
@@ -125,7 +125,7 @@ imaa-tracker/
 
 ## Quick Start
 **Prerequisites**
-- Python 3.9+
+- Python 3.10+
 
 **1. Clone the repository:**
 ```bash
