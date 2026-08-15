@@ -26,7 +26,6 @@ MIXED = _Mixed()
 
 
 # !TODO! return focus to parent window
-# !TODO! refresh dashboard
 class EditSessionDialog(QDialog):
     """Modal dialog for editing sessions"""
     def __init__(self, sessions: list[dict], parent=None):
@@ -36,6 +35,7 @@ class EditSessionDialog(QDialog):
 
         self.sessions = sessions
         self.is_batch = len(sessions) > 1
+        self.affected_dates: list[str] = sorted({s["date"] for s in sessions})
 
         self._mediums = {s["medium_type"] for s in sessions}
         self.is_mixed_medium = self.is_batch and len(self._mediums) > 1
@@ -423,6 +423,11 @@ class EditSessionDialog(QDialog):
             self._resolve_title_id(changes)
 
         try:
+            new_date = changes.get("date")
+            self.affected_dates = sorted(
+                {s["date"] for s in self.sessions} | ({new_date} if new_date else set())
+            )
+
             if self.is_batch:
                 ids = [s["id"] for s in self.sessions]
                 print(f"ARGUMENTS: \n\t{ids} \n\t{changes}")

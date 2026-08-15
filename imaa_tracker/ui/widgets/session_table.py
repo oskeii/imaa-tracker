@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableView, QMessageBox,
     QLabel, QDateEdit, QComboBox, QPushButton, QAbstractItemView
 )
-from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
+from PyQt6.QtCore import pyqtSignal, Qt, QAbstractTableModel, QModelIndex, QDate
 from .edit_session_dialog import EditSessionDialog
 
 from imaa_tracker.core import repo
@@ -87,6 +87,7 @@ class SessionHistoryWidget(QWidget):
     """
     Filterable table showing logged immersion sessions.
     """
+    sig_sessions_changed = pyqtSignal(list)  # list of affected dates (ISO)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -231,9 +232,13 @@ class SessionHistoryWidget(QWidget):
 
     def _open_edit_dialog(self, sessions: list[dict]):
         from PyQt6.QtWidgets import QDialog
+        dates = sorted({s["date"] for s in sessions})
         dlg = EditSessionDialog(sessions, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.refresh()
+            self.sig_sessions_changed.emit(
+                sorted(set(dates) | set(dlg.affected_dates))
+            )
 
     def delete_selected(self):
         """Delete session of the currently selected row."""
@@ -255,5 +260,7 @@ class SessionHistoryWidget(QWidget):
             return
 
         ids = [s["id"] for s in sessions]
+        dates = sorted({s["date"] for s in sessions})
         repo.bulk_delete_immersion_sessions(ids)
         self.refresh()
+        self.sig_sessions_changed.emit(dates)

@@ -57,9 +57,9 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.goals_tab, "Goals")
 
         # --- Cross-tab communication ---
-        self.log_form.sig_session_logged.connect(self._on_session_logged)
+        self.log_form.sig_session_logged.connect(self._on_sessions_changed)
+        self.session_history.sig_sessions_changed.connect(self._on_sessions_changed)
         self.goals_tab.sig_goals_changed.connect(self.goals_strip.refresh)
-        # !! need signal from session edit/delete too
 
         # --- Status bar ---
         self.statusBar().showMessage("Ready")
@@ -80,10 +80,14 @@ class MainWindow(QMainWindow):
         file_menu.addAction(backup_action)
 
 
-    def _on_session_logged(self):
+    def _on_sessions_changed(self, affected_dates: list[str]=[]):
+        """Session data added, edited, or deleted"""
         from imaa_tracker.core.services import goals_service as gs
-
-        # Evaluate goals against newly-updated session data
+        # Re-evaluate any related past goal periods, without notifications
+        for d in affected_dates:
+            gs.check_and_log_goals(as_of_date=d)
+            
+        # Evaluate any current goal periods against newly-updated session data, to notify
         newly_achieved = gs.check_and_log_goals()
         self.achievement_notifier.notify(newly_achieved)        
 
