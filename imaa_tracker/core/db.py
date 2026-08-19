@@ -7,11 +7,12 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from imaa_tracker.core.paths import DB_PATH
 from imaa_tracker.core.constants import ENUMS
 
 
 SCHEMA_VERSION = 3
-DB_NAME = "imaa_tracker.db"  # relative path
+DB_NAME = str(DB_PATH)
 
 
 def sql_enum(values) -> str:

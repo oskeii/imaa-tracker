@@ -3,10 +3,12 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from imaa_tracker.core.migrations import open_database
+from imaa_tracker.core.paths import ensure_dirs
 from imaa_tracker.ui.main_window import MainWindow
 
 
 def main():
+    ensure_dirs()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
