@@ -10,6 +10,7 @@ LOG_DIR = Path(platformdirs.user_log_dir(APP_NAME, appauthor=False))
 CACHE_DIR = Path(platformdirs.user_cache_dir(APP_NAME, appauthor=False))
 
 DB_PATH = DATA_DIR / "imaa_tracker.db"
+DEMO_DB_PATH = DATA_DIR / "demo.db"
 
 
 def ensure_dirs():

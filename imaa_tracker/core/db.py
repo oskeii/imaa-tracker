@@ -6,10 +6,13 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from datetime import datetime
+import logging
 
-from imaa_tracker.core.paths import DB_PATH
+from imaa_tracker.core.paths import DB_PATH, DATA_DIR
 from imaa_tracker.core.constants import ENUMS
 
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 3
 DB_NAME = str(DB_PATH)
@@ -29,6 +32,11 @@ def enum_check(column: str, key: str, nullable: bool = False) -> str:
     if nullable:
         return f"CHECK ({column} IS NULL OR {column} IN {allowed})"
     return f"CHECK ({column} IN {allowed})"
+
+
+def set_database_path(path):
+    global DB_NAME
+    DB_NAME = str(path)
 
 
 def get_connection(db_path=None) -> sqlite3.Connection:
@@ -64,6 +72,19 @@ def get_schema_version(db_path=None) -> int:
     """Read schema version stamped in the DB header. 0= never stamped"""
     with connect(db_path) as conn:
         return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def drop_database(db_path: Path = None):
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safety = DATA_DIR / f"pre-drop-{stamp}.db"
+
+    logger.info("Backing up your database to %s...", str(safety))
+    backup_path = backup_database(str(safety), db_path)
+    if not backup_path:
+        logger.warning("Database backup failed. Cancelling database drop.")
+        raise
+    db_path.unlink(missing_ok=True)
+    logger.info("Database file removed at %s", str(db_path))
 
 
 def backup_database(dest_path, db_path=None) -> str:

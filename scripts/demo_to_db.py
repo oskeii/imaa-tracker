@@ -19,7 +19,8 @@ import sqlite3
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
-from imaa_tracker.core.db import get_connection, DB_NAME
+from imaa_tracker.core.paths import DEMO_DB_PATH, DB_PATH, DATA_DIR
+from imaa_tracker.core.db import get_connection, DB_NAME, backup_database
 from imaa_tracker.core.migrations import open_database
 
 
@@ -364,7 +365,11 @@ def main():
     parser.add_argument("--append", action="store_true",
                         help="Add to existing data instead of clearing first")
     parser.add_argument("--db", default=None,
-                        help=f"Database path (default: {DB_NAME})")
+                        help="Database path (default: the demo database)")
+    parser.add_argument("--force", action="store_true",
+                        help="Allow clearing a non-demo database (makes a backup first)")
+    parser.add_argument("--drop", action="store_true",
+                        help="Delete the demo database")
     args = parser.parse_args()
 
     json_path = Path(args.json_path)
@@ -372,10 +377,28 @@ def main():
         print(f"Error: {json_path} not found")
         sys.exit(1)
 
-    db_path = args.db or DB_NAME
+    db_path = args.db or DEMO_DB_PATH
+    is_real_db = Path(db_path).resolve() == DB_PATH.resolve()
+
+    if is_real_db and not args.append and not args.force:
+        parser.error(
+            f"Refusing to clear your real database at {db_path}.\n"
+            f"Use --append to add demo data to it, or --force to wipe it."
+        )
+
+    if is_real_db and args.force and Path(db_path).exists():
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        safety = DATA_DIR / f"pre-demo-{stamp}.db"
+        print(f"Backing up your real database to {safety}...")
+        backup_database(str(safety), db_path)
+
+    if args.drop:
+        db_path.unlink(missing_ok=True)
+        print(f"Database file has been deleted at: {db_path}")
+        return
 
     print(f"Opening database at {db_path}...")
-    open_database(db_path)   # creates a fresh schema or migrates an existing one (if outdated)
+    open_database(db_path)
     conn = get_connection(db_path)
 
     if not args.append:
@@ -420,6 +443,8 @@ def main():
     print_summary(conn)
     conn.close()
     print(f"\nDone. Database: {db_path}")
+    if Path(db_path).resolve() == DEMO_DB_PATH.resolve():
+        print(f"Use `python main.py --demo` to open the app with the demo database.")
 
 
 if __name__ == "__main__":
