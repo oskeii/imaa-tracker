@@ -1,8 +1,11 @@
 from contextlib import closing
 from datetime import datetime
+import logging
 
 from imaa_tracker.core import db
 from . import m001_goal_flags, m002_settings, m003_enum_checks
+
+logger = logging.getLogger(__name__)
 
 # APPEND ONLY (version, description, upgrade_function)
 MIGRATIONS = [
@@ -50,14 +53,14 @@ def migrate(db_path=None, backup=True) -> int:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         dest = f"{db_path}.v{current}.{stamp}.bak"
         db.backup_database(dest, db_path=db_path)
-        print(f"[migrate] backup written: {dest}")
+        logger.info("[migrate] backup written: %s", dest)
 
     with closing(db.get_connection(db_path)) as conn:
         conn.isolation_level = None
         conn.execute("PRAGMA foreign_keys=OFF")
 
         for ver, desc, upgrade in pending:
-            print(f"[migrate] {current} -> {ver}: {desc}")
+            logger.info("[migrate] %d -> %d: %s", current, ver, desc)
             conn.execute("BEGIN")
             try:
                 upgrade(conn)
@@ -74,10 +77,10 @@ def migrate(db_path=None, backup=True) -> int:
                 conn.execute("COMMIT")
             except Exception:
                 conn.execute("ROLLBACK")
+                logger.exception("migration %d failed; rolled back to version %d", ver, current)
                 raise
             current = ver
-
-    print(f"[migrate] done, now at version {current}")
+    logger.info("[migrate] done, now at version %d", current)
     return current
 
 
