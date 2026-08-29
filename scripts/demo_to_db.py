@@ -19,8 +19,8 @@ import sqlite3
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
-from imaa_tracker.core.paths import DEMO_DB_PATH, DB_PATH, DATA_DIR
-from imaa_tracker.core.db import get_connection, DB_NAME, backup_database
+from imaa_tracker.core.paths import DEMO_DB_PATH, DB_PATH, BACKUP_DIR
+from imaa_tracker.core.db import get_connection, backup_database
 from imaa_tracker.core.migrations import open_database
 
 
@@ -388,7 +388,7 @@ def main():
 
     if is_real_db and args.force and Path(db_path).exists():
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        safety = DATA_DIR / f"pre-demo-{stamp}.db"
+        safety = BACKUP_DIR / f"pre-demo-{stamp}.db"
         print(f"Backing up your real database to {safety}...")
         backup_database(str(safety), db_path)
 

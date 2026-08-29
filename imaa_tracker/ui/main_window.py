@@ -9,7 +9,7 @@ from .widgets.charts_pyqtgraph import ImmersionTimeTrend, ReadingSpeedTrend
 from .widgets.goal_notifs import GoalsStrip, AchievementNotifier
 
 from .widgets.snapshot_export import save_dashboard_snapshot
-from .widgets.backup_action import save_database_backup
+from .widgets.backup_action import save_database_backup, restore_database_from_backup
 
 
 def create_dashboard() -> DashboardContainer:
@@ -71,6 +71,9 @@ class MainWindow(QMainWindow):
         backup_action = QAction("Back Up Database...", self)
         backup_action.triggered.connect(lambda: save_database_backup(self))
 
+        restore_action = QAction("Restore from Backup...", self)
+        restore_action.triggered.connect(self._on_restore_requested)
+
         # --- Menu ---
         menu = self.menuBar()
 
@@ -78,21 +81,29 @@ class MainWindow(QMainWindow):
         file_menu.addAction(export_action)
         file_menu.addSeparator()
         file_menu.addAction(backup_action)
+        file_menu.addAction(restore_action)
 
-
-    def _on_sessions_changed(self, affected_dates: list[str]=[]):
-        """Session data added, edited, or deleted"""
-        from imaa_tracker.core.services import goals_service as gs
-        # Re-evaluate any related past goal periods, without notifications
-        for d in affected_dates:
-            gs.check_and_log_goals(as_of_date=d)
-            
-        # Evaluate any current goal periods against newly-updated session data, to notify
-        newly_achieved = gs.check_and_log_goals()
-        self.achievement_notifier.notify(newly_achieved)        
-
+    def _refresh_all_views(self):
         self.goals_strip.refresh()
         self.goals_tab.refresh()
         self.session_history.refresh()
         self.dashboard.refresh_all()
 
+    def _on_sessions_changed(self, affected_dates: list[str] = None):
+        """Session data added, edited, or deleted"""
+        from imaa_tracker.core.services import goals_service as gs
+        # Re-evaluate any related past goal periods, without notifications
+        for d in affected_dates:
+            gs.check_and_log_goals(as_of_date=d)
+
+        # Evaluate any current goal periods against newly-updated session data, to notify
+        newly_achieved = gs.check_and_log_goals()
+        self.achievement_notifier.notify(newly_achieved)
+
+        self._refresh_all_views()
+
+    def _on_restore_requested(self):
+        if restore_database_from_backup(self):
+            # !! maybe re-evaluate goals here too
+            self._refresh_all_views()
+            self.statusBar().showMessage("Database restored.", 5000)

@@ -51,7 +51,7 @@ def migrate(db_path=None, backup=True) -> int:
 
     if backup:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        dest = f"{db_path}.v{current}.{stamp}.bak"
+        dest = f"{db_path}.v{current}.{stamp}.bak"  # !! where does this even land?
         db.backup_database(dest, db_path=db_path)
         logger.info("[migrate] backup written: %s", dest)
 

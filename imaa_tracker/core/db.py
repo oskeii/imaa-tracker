@@ -4,12 +4,12 @@ DATABASE SCHEMA VERSION 3
 """
 import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from pathlib import Path
 from datetime import datetime
 import logging
 
-from imaa_tracker.core.paths import DB_PATH, DATA_DIR
+from imaa_tracker.core.paths import DB_PATH, BACKUP_DIR
 from imaa_tracker.core.constants import ENUMS
 
 logger = logging.getLogger(__name__)
@@ -74,19 +74,6 @@ def get_schema_version(db_path=None) -> int:
         return conn.execute("PRAGMA user_version").fetchone()[0]
 
 
-def drop_database(db_path: Path = None):
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    safety = DATA_DIR / f"pre-drop-{stamp}.db"
-
-    logger.info("Backing up your database to %s...", str(safety))
-    backup_path = backup_database(str(safety), db_path)
-    if not backup_path:
-        logger.warning("Database backup failed. Cancelling database drop.")
-        raise
-    db_path.unlink(missing_ok=True)
-    logger.info("Database file removed at %s", str(db_path))
-
-
 def backup_database(dest_path, db_path=None) -> str:
     """
     Write a single-file copy of the database to dest_path.
@@ -95,11 +82,79 @@ def backup_database(dest_path, db_path=None) -> str:
     """
     dest = Path(dest_path)
 
+    logger.info("backing up database at %s to %s", str(db_path), str(dest))
     dest.unlink(missing_ok=True)  # VACUUM INTO refuses to overwrite; must clear target first
     with connect(db_path) as conn:
         conn.execute("VACUUM INTO ?", (str(dest),))
 
+    logger.info("database backup complete: %s", str(dest))
     return str(dest)
+
+
+def inspect_backup(src_path) -> dict:
+    """
+    Inspect metadata from a backup file.
+    Raises ValueError if not a usable imaa-tracker database.
+    """
+    p = Path(src_path)
+    if not p.exists():
+        raise ValueError(f"File not found: {p}")
+
+    uri = f"file:{p.as_posix()}?mode=ro"
+    try:
+        with closing(sqlite3.connect(uri, uri=True)) as conn:
+            status = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            if status != "ok":
+                raise ValueError(f"Failed integrity check: {status}")
+
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+            tables = {r[0] for r in conn.execute(  # !!
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+            missing = {"titles", "immersion_sessions", "goals"} - tables  # !!
+            if missing:
+                raise ValueError(f"Not an imaa-tracker database (missing {sorted(missing)}")
+
+            sessions = conn.execute("SELECT COUNT(*) FROM immersion_sessions").fetchone()[0]
+    except sqlite3.DatabaseError as e:
+        raise ValueError(f"Not a readable SQLite database: {e}") from e
+
+    if version > SCHEMA_VERSION:
+        raise ValueError(
+            f"Backup is schema v{version}; this app currently supports v{SCHEMA_VERSION}."
+            f"Update the app before restoring."
+        )
+    return {
+        "path": str(p), "schema_version": version,
+        "session_count": sessions, "size_bytes": p.stat().st_size
+    }
+
+
+def restore_database(src_path, db_path=None):
+    """
+    Overwrite the live database with the contents of a backup file.
+    """
+    if db_path is None:
+        db_path = DB_NAME
+
+    logger.info("restoring database from %s into %s", str(src_path), str(db_path))
+    with closing(sqlite3.connect(str(src_path))) as src:
+        with closing(get_connection(db_path)) as dest:
+            src.backup(dest)
+    logger.info("restore complete: %s", str(db_path))
+
+
+def drop_database(db_path: Path = None):
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safety = BACKUP_DIR / f"pre-drop-{stamp}.db"
+
+    logger.info("Backing up your database to %s...", str(safety))
+    backup_path = backup_database(str(safety), db_path)
+    if not backup_path:
+        logger.warning("Database backup failed. Cancelling database drop.")
+        raise
+    db_path.unlink(missing_ok=True)
+    logger.info("Database file removed at %s", str(db_path))
 
 
 def init_db(db_path=None) -> None:
