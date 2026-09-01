@@ -9,7 +9,7 @@ from imaa_tracker.core import repo
 # FIXTURES
 # ==============================
 @pytest.fixture
-def sample_title():
+def sample_title(test_db):
     """Create a single title and return its ID"""
     return repo.add_title("カードキャプターさくら", "anime")
 
@@ -48,7 +48,7 @@ def sample_sessions(sample_title):
 
 
 @pytest.fixture
-def sample_titles():
+def sample_titles(test_db):
     """Create multiple titles, with similarities in names. Returns list of title IDs"""
     def add(name, medium, **kwargs):
         return repo.add_title(name, medium, **kwargs)
@@ -121,7 +121,7 @@ def sample_titles():
 # ==============================
 class TestTitles:
 
-    def test_add_title(self):
+    def test_add_title(self, test_db):
         """Basic insert and retrieve"""
         title_id = repo.add_title("キノの旅", "light_novel", genre="slice-of-life, fantasy")
         assert title_id is not None
@@ -133,7 +133,7 @@ class TestTitles:
         assert titles[0]["medium_type"] == "light_novel"
         assert titles[0]["genre"] == "slice-of-life, fantasy"
 
-    def test_get_all_titles_filter_by_medium(self):
+    def test_get_all_titles_filter_by_medium(self, test_db):
         """Filtering should only return matching medium types"""
         repo.add_title("Anime Title", "anime")
         repo.add_title("LN Title", "light_novel")
@@ -211,7 +211,7 @@ class TestTitles:
         assert len(repo.search_titles('_')) == 20
         assert len(repo.search_titles('%')) == 20
 
-    def test_get_or_create_title_existing(self):
+    def test_get_or_create_title_existing(self, test_db):
         """Should return existing title ID without creating a duplicate"""
         id1 = repo.add_title("Test Title", "anime")
         id2 = repo.get_or_create_title("Test Title", "anime")
@@ -219,7 +219,7 @@ class TestTitles:
 
         assert len(repo.get_all_titles()) == 1
 
-    def test_get_or_create_title_new(self):
+    def test_get_or_create_title_new(self, test_db):
         """Should create when title doesn't exist"""
         id1 = repo.get_or_create_title("New Title", "anime")
         titles = repo.get_all_titles()
@@ -227,7 +227,7 @@ class TestTitles:
         assert titles[0]["id"] == id1
         assert titles[0]["name"] == "New Title"
 
-    def test_same_name_different_medium_are_distinct(self):
+    def test_same_name_different_medium_are_distinct(self, test_db):
         """Re:Zero as anime and LN should be separate titles"""
         id1 = repo.add_title("Re:Zero", "anime")
         id2 = repo.add_title("Re:Zero", "light_novel")
@@ -241,7 +241,7 @@ class TestTitles:
 # ==============================
 class TestImmersionSessions:
 
-    def test_add_session_minimal(self):
+    def test_add_session_minimal(self, test_db):
         """A session only needs date, title_text, medium_type, and activity_type.
         (Duration may be forgotten and corrected later)"""
         session_id = repo.add_immersion_session(
@@ -259,7 +259,7 @@ class TestImmersionSessions:
         assert sessions[0]["duration_minutes"] is None
         assert sessions[0]["title_id"] is None
 
-    def test_add_session_full(self):
+    def test_add_session_full(self, test_db):
         """All fields should be stored and retrievable."""
         urls = json.dumps(["https://youtube.com/watch?v=abc123"])
         session_id = repo.add_immersion_session(

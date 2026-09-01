@@ -17,7 +17,7 @@ JULY = "2026-07-02"
 
 
 @pytest.fixture()
-def dataset():
+def dataset(test_db):
     """
     Layout:
       MON  reading    60min   6000 chars   ln     (title 1)
@@ -69,7 +69,7 @@ class TestDailySummary:
         assert s["date"] == MON
         assert s["by_activity"] == {"reading": 60, "listening": 30}
 
-    def test_daily_summary_defaults_to_today(self):
+    def test_daily_summary_defaults_to_today(self, test_db):
         today = date.today()
         yesterday = today - timedelta(days=1)
         repo.add_immersion_session(
@@ -132,7 +132,7 @@ class TestWeeklySummary:
         assert s["session_count"] == 6
         assert s["by_activity"] == {"reading": 160, "listening": 50, "both": 45}
 
-    def test_weekly_summary_defaults_to_current_week(self):
+    def test_weekly_summary_defaults_to_current_week(self, test_db):
         today = date.today()
         this_monday = today - timedelta(days=today.weekday())
         repo.add_immersion_session(today.isoformat(), "t", "manga", "reading",
@@ -161,7 +161,7 @@ class TestWeeklySummary:
         fri = (date.fromisoformat(THU) + timedelta(days=1)).isoformat()
         assert daily_min[fri] == {"reading": 0, "listening": 0, "both": 0}
 
-    def test_weekly_summary_daily_avg_always_divides_by_seven(self):
+    def test_weekly_summary_daily_avg_always_divides_by_seven(self, test_db):
         """
         Buggy: daily_avg divides by 7 unconditionally, including for the CURRENT week
         Results in a number that climbs all week for a reason unapparent to the user
@@ -280,7 +280,7 @@ class TestAllTimeTotals:
         t = repo.get_alltime_totals()
         assert t["title_count"] == 3
 
-    def test_alltime_totals_on_empty_database(self):
+    def test_alltime_totals_on_empty_database(self, test_db):
         t = repo.get_alltime_totals()
         assert t["session_count"] == 0
         assert t["total_minutes"] == 0
