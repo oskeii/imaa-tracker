@@ -336,8 +336,8 @@ def _create_goals_tables(cur: sqlite3.Cursor):
         health_window_days  INTEGER DEFAULT 60,     -- health percentage calculated based on  the last N days
         
         is_active       BOOLEAN NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
-        pinned          BOOLEAN NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)),
-        show_on_log     BOOLEAN NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)),
+        pinned          INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0,1)),
+        show_on_log     INTEGER NOT NULL DEFAULT 0 CHECK (show_on_log IN (0,1)),
         
         achieved_at     TEXT,       -- for lifetime goal (ISO datetime)
         notes           TEXT,

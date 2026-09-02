@@ -45,6 +45,12 @@ def migrate(db_path=None, backup=True) -> int:
 
     current = db.get_schema_version(db_path)
 
+    if current > LATEST_VERSION:
+        raise RuntimeError(
+            f"Database schema version {current} is newer than this app "
+            f"supports ({LATEST_VERSION}). Please update the app."
+        )
+
     pending = [(v, desc, fn) for v, desc, fn in MIGRATIONS if v > current]
     if not pending:
         return current
