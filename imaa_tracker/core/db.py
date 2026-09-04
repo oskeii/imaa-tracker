@@ -82,7 +82,7 @@ def backup_database(dest_path, db_path=None) -> str:
     """
     dest = Path(dest_path)
 
-    logger.info("backing up database at %s to %s", str(db_path), str(dest))
+    logger.info("backing up database at %s to %s", str(db_path or DB_NAME), str(dest))
     dest.unlink(missing_ok=True)  # VACUUM INTO refuses to overwrite; must clear target first
     with connect(db_path) as conn:
         conn.execute("VACUUM INTO ?", (str(dest),))
