@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         # --- Cross-tab communication ---
         self.log_form.sig_session_logged.connect(self._on_sessions_changed)
         self.session_history.sig_sessions_changed.connect(self._on_sessions_changed)
-        self.goals_tab.sig_goals_changed.connect(self.goals_strip.refresh)
+        self.goals_tab.sig_goals_changed.connect(self._on_goals_changed)
 
         # --- Status bar ---
         self.statusBar().showMessage("Ready")
@@ -92,13 +92,28 @@ class MainWindow(QMainWindow):
     def _on_sessions_changed(self, affected_dates: list[str] = None):
         """Session data added, edited, or deleted"""
         from imaa_tracker.core.services import goals_service as gs
+        events: list[dict] = []
+
         # Re-evaluate any related past goal periods, without notifications
-        for d in affected_dates:
-            gs.check_and_log_goals(as_of_date=d)
+        for d in (affected_dates or []):
+            events.extend(
+                e for e in gs.check_and_log_goals(as_of_date=d)
+                if e["type"] == "lifetime_regression"
+            )
+            # gs.check_and_log_goals(as_of_date=d)
 
         # Evaluate any current goal periods against newly-updated session data, to notify
-        newly_achieved = gs.check_and_log_goals()
-        self.achievement_notifier.notify(newly_achieved)
+        events.extend(gs.check_and_log_goals())
+        self.achievement_notifier.notify(events)
+
+        self._refresh_all_views()
+
+    def _on_goals_changed(self):
+        """A goal was created, edited, pinned, or deactivated"""
+        from imaa_tracker.core.services import goals_service as gs
+
+        events = gs.check_and_log_goals()
+        self.achievement_notifier.notify(events)
 
         self._refresh_all_views()
 

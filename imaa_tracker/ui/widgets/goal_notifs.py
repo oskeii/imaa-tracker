@@ -8,6 +8,12 @@ from PyQt6.QtCore import Qt, QTimer, QObject
 
 from imaa_tracker.core.utils.formatting import format_metric_unit
 
+_TOAST_STYLES = {
+    "recurring": ("#5AD8A6", "✓  {name} — done!"),
+    "lifetime_regression": ("#F6BD16", "↩ {name} — no longer complete")
+}
+
+
 class GoalsStrip(QWidget):
 
     def __init__(self, parent=None):
@@ -71,17 +77,18 @@ class AchievementNotifier(QObject):
     """
     Route achievement events to appropriate UI
     """
+
     def __init__(self, main_window: QWidget):
         super().__init__(main_window)
         self._main_window = main_window
         self._active_toasts: list[QFrame] = []
 
-    def notify(self, achievements: list[dict]):
-        for a in achievements:
-            if a["type"] == "lifetime":
-                self._show_modal(a)
-            elif a["type"] == "recurring":
-                self._show_toast(a)
+    def notify(self, events: list[dict]):
+        for e in events:
+            if e["type"] == "lifetime":
+                self._show_modal(e)
+            else:
+                self._show_toast(e)
 
     def _show_modal(self, achievement: dict):
         goal = achievement["goal"]
@@ -128,25 +135,27 @@ class AchievementNotifier(QObject):
 
         dlg.exec()
 
-    def _show_toast(self, achievement: dict):
-        goal = achievement["goal"]
+    def _show_toast(self, event: dict):
+        goal = event["goal"]
+        color, template = _TOAST_STYLES.get(
+            event["type"], _TOAST_STYLES["recurring"]
+        )
 
         toast = QFrame(self._main_window)
-        toast.setStyleSheet("""
-            QFrame {
-                background: #5AD8A6;
-                border-radius: 6px;
-            }
-            QLabel {
+        toast.setStyleSheet(f"""
+            QFrame {{ background: {color}; border-radius: 6px; }}
+            QLabel {{
                 color: white;
                 font-size: 12px;
                 font-weight: bold;
-            }
+            }}
         """)
 
         inner = QHBoxLayout(toast)
-        inner.setContentsMargins(10, 10, 10, 10)
-        inner.addWidget(QLabel(f"✓  {goal['name']} — done!"))
+        inner.setContentsMargins(14, 10, 14, 10)
+        inner.addWidget(QLabel(
+            template.format(name=goal["name"])
+        ))
 
         toast.adjustSize()
         self._position_toast(toast, active=self._active_toasts)
@@ -164,7 +173,6 @@ class AchievementNotifier(QObject):
         x = mw.width() - toast.width() - margin
         y = mw.height() - toast.height() - margin - offset
         toast.move(max(0, x), max(0, y))
-
 
     def _remove_toast(self, toast: QFrame):
         if toast in self._active_toasts:

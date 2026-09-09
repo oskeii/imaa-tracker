@@ -139,7 +139,6 @@ class GoalsTab(QWidget):
             self.refresh()
         self.sig_goals_changed.emit()
 
-
     def _new_milestone(self):
         dlg = MilestoneDialog(parent=self)
         if dlg.exec():

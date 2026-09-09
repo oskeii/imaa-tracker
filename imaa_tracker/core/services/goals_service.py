@@ -11,6 +11,7 @@ _PERIOD_ORDER = {"daily": 0, "weekly": 1, "monthly": 2, None: 3}
 def _sort_goals(goals: list[dict]) -> list[dict]:
     """Pinned first, then by period, then oldest first"""
     return sorted(goals, key=lambda g: (
+        not bool(g.get("achieved_at") is not None),
         not bool(g.get("pinned", 0)),
         _PERIOD_ORDER.get(g.get("period"), 999),
         g.get("created_at", ""),
@@ -36,8 +37,8 @@ def compute_goal_progress(goal: dict, as_of_date: str = None) -> dict:
         period_end = (monday + timedelta(days=6)).isoformat()
     elif period == "monthly":
         first = target_date.replace(day=1)
-        nxt = (first.replace(year=first.year + 1, month=1)
-                    if first.month==12 else first.replace(month=first.month+1))
+        nxt = (first.replace(year=first.year + 1, month=1) if first.month == 12
+               else first.replace(month=first.month+1))
         period_start = first.isoformat()
         period_end = (nxt - timedelta(days=1)).isoformat()
     else:
@@ -161,18 +162,19 @@ def get_active_goals_with_progress(recently_achieved_window_days: int = 3) -> li
 
 def check_and_log_goals(as_of_date: str = None) -> list[dict]:
     """    
-    Evaluate active goals, record each period's outcome to goal_log,
-    and return any newly-achieved goals.
+    Evaluate goals against current session data,
+    record each period's outcome to goal_log, and return goal events for UI to notify on.
     If lifetime goal achieved, deactivate and create a milestone.
+    Evaluates for lifetime goal regression ONLY when as_of_date is the present day.
     """
-    today = date.fromisoformat(as_of_date) if as_of_date else date.today()
+    target = date.fromisoformat(as_of_date) if as_of_date else date.today()
+    events: list[dict] = []
     goals = get_goals()
-    newly_achieved: list[dict] = []
 
     with connect() as conn:
+        # --- 1. active goals -> current progress based on session data
         for goal in goals:
-            # current progress based on session data
-            progress = compute_goal_progress(goal, as_of_date=today.isoformat())
+            progress = compute_goal_progress(goal, as_of_date=target.isoformat())
 
             if goal["goal_type"] == "recurring":
                 prev = conn.execute(
@@ -190,21 +192,23 @@ def check_and_log_goals(as_of_date: str = None) -> list[dict]:
                     (goal_id, period_date, actual_value, target_value, is_achieved)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (goal["id"], progress["period_start"],
-                    progress["current_value"], progress["target_value"],
-                    (1 if progress["achieved"] else 0),)
+                    (
+                        goal["id"], progress["period_start"],
+                        progress["current_value"], progress["target_value"],
+                        (1 if progress["achieved"] else 0),
+                    )
                 )
 
                 if progress["achieved"] and not was_achieved:
                     # !! maybe want feedback on progress of unachieved goals that aren't shown on log-tab
-                    newly_achieved.append(
+                    events.append(
                         {"type": "recurring", "goal": goal, "progress": progress}
                     )
 
             elif goal["goal_type"] == "lifetime" and (progress["achieved"] and not goal["achieved_at"]):
                 conn.execute(
                     "UPDATE goals SET achieved_at = ?, is_active = 0 WHERE id = ?",
-                    (today.isoformat(), goal["id"],)
+                    (target.isoformat(), goal["id"],)
                 )
                 filters = {}
                 m, a = goal["medium_type"], goal["activity_type"]
@@ -212,23 +216,52 @@ def check_and_log_goals(as_of_date: str = None) -> list[dict]:
                     filters["medium_type"] = m
                 if a:
                     filters["activity_type"] = a
-                
+
                 cur = conn.execute(
                     """
                     INSERT INTO milestones
                     (title, date, goal_id, metric, metric_value, filter_json)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (f"Goal achieved: {goal['name']}", today.isoformat(), 
-                    goal["id"], goal["metric"], progress["current_value"],
-                    json.dumps(filters) if filters else None)
+                    (
+                        f"Goal achieved: {goal['name']}", target.isoformat(),
+                        goal["id"], goal["metric"], progress["current_value"],
+                        json.dumps(filters) if filters else None,
+                    )
                 )
-                newly_achieved.append({
-                    "type": "lifetime", "goal": goal, 
+                events.append({
+                    "type": "lifetime", "goal": goal,
                     "progress": progress, "milestone_id": cur.lastrowid,
                 })
 
-    return newly_achieved
+        # --- 2. achieved lifetime goals -> regression check
+        if target >= date.today():
+            achieved_rows = conn.execute(
+                """
+                SELECT * from goals
+                WHERE goal_type = 'lifetime' AND achieved_at IS NOT NULL
+                """
+            ).fetchall()
+
+            for row in achieved_rows:
+                goal = dict(row)
+                progress = compute_goal_progress(goal, as_of_date=target.isoformat())
+                if progress["achieved"]:  # according to live session data
+                    continue
+
+                #  Un-achieve, reactivate goal, delete associated milestone
+                conn.execute(
+                    "UPDATE goals SET achieved_at = NULL, is_active = 1 WHERE id = ?",
+                    (goal["id"],)
+                )
+
+                conn.execute("DELETE FROM milestones WHERE goal_id = ?", (goal["id"],))
+
+                events.append({
+                    "type": "lifetime_regression", "goal": goal, "progress": progress,
+                })
+
+    return events
 
 
 def get_log_strip_goals() -> list[dict]:
