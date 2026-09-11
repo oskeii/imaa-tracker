@@ -262,3 +262,27 @@ def test_goal_log_survives_goals_rebuild(tmp_path):
     )
     assert idx == ["idx_goallog_date", "idx_goallog_goal", "idx_goallog_unique"]
     conn.close()
+
+
+class TestTitleUniqueness:
+
+    def test_duplicates_merged_and_sessions_repointed(self, tmp_path):
+        """
+        Two titles differing only by trailing space, merge into one,
+        and sessions pointing at the dupe now point to the original
+        """
+        v0_db = _make_v0_db(str(tmp_path / "old.db"))
+        with db.connect(v0_db) as conn:
+            conn.execute("INSERT INTO titles (id, name, medium_type) VALUES (1, 'キノの旅', 'light_novel')")
+            conn.execute("INSERT INTO titles (id, name, medium_type) VALUES (2, 'キノの旅 ', 'light_novel')")
+            titles = conn.execute("SELECT id FROM titles WHERE name = 'キノの旅'").fetchall()
+            assert len(titles) == 1
+            conn.execute("INSERT INTO immersion_sessions (date, title_id, title_text, medium_type) "
+                         "VALUES ('2026-01-01', 2, 'キノの旅 ', 'light_novel')")
+
+        migrations.migrate(v0_db)
+
+        with db.connect(v0_db) as conn:
+            titles = conn.execute("SELECT id FROM titles WHERE name = 'キノの旅'").fetchall()
+            assert len(titles) == 1
+            assert tuple(conn.execute("SELECT title_id, title_text FROM immersion_sessions").fetchone()) == (1, "キノの旅")

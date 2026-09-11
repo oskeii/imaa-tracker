@@ -14,7 +14,7 @@ from imaa_tracker.core.constants import ENUMS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DB_NAME = str(DB_PATH)
 
 
@@ -197,6 +197,8 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
     );
     CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(name);
     CREATE INDEX IF NOT EXISTS idx_titles_medium ON titles(medium_type);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_titles_name_medium 
+        ON titles(name COLLATE NOCASE, medium_type);
     """
 
     query_immersion_sessions = f"""

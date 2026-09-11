@@ -1,4 +1,7 @@
 import json
+import sqlite3
+
+import unicodedata
 from datetime import date, timedelta
 import pytest
 
@@ -234,6 +237,23 @@ class TestTitles:
         assert id1 != id2
 
         assert len(repo.get_all_titles()) == 2
+
+    def test_get_or_create_title_is_case_insensitive(self,test_db):
+        id1 = repo.add_title("Frieren", "anime")
+        assert repo.get_or_create_title("frieren", "anime") == id1
+        assert len(repo.get_all_titles()) == 1
+
+    def test_get_or_create_title_normalizes_input(self, test_db):
+        name = "カードキャプターさくら"
+        id1 = repo.add_title(name, "anime")
+        decomposed = unicodedata.normalize("NFD", name)
+        assert decomposed != name
+        assert repo.get_or_create_title(decomposed, "anime") == id1
+
+    def test_duplicate_title_rejected_at_db_level(self, test_db):
+        repo.add_title("Test", "anime")
+        with pytest.raises(sqlite3.IntegrityError):
+            repo.add_title("Test", "anime")
 
 
 # ==============================

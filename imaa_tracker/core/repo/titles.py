@@ -1,6 +1,7 @@
 """Titles - the catalogue of media the user immerses in."""
 from imaa_tracker.core.constants import ENUMS
 from imaa_tracker.core.db import connect
+from imaa_tracker.core.utils.text import normalize_title
 
 TITLES_COLS = {
     "name": {"type": str},
@@ -36,7 +37,7 @@ def get_all_titles(medium_type: str = None) -> list[dict]:
 def search_titles(query: str, medium_type: str = None) -> list[dict]:
     """Search titles by name (substring match), optionally filter by medium type"""
     sql = "SELECT * FROM titles WHERE name LIKE ?"
-    params = [f"%{query}%"]
+    params = [f"%{normalize_title(query)}%"]
     if medium_type:
         sql += " AND medium_type = ?"
         params.append(medium_type)
@@ -50,7 +51,7 @@ def search_titles(query: str, medium_type: str = None) -> list[dict]:
 def add_title(name: str, medium_type: str, **kwargs) -> int:
     """Insert a new title. Returns the new title's ID."""
     data = {col: None for col in TITLES_COLS}
-    data.update({'name': name, 'medium_type': medium_type, **kwargs})
+    data.update({'name': normalize_title(name), 'medium_type': medium_type, **kwargs})
     col_str = ", ".join(TITLES_COLS.keys())
     placeholders = ", ".join(f":{_}" for _ in TITLES_COLS.keys())
 
@@ -62,9 +63,10 @@ def add_title(name: str, medium_type: str, **kwargs) -> int:
 
 def get_or_create_title(name: str, medium_type: str) -> int:
     """Find an existing title by name & medium, else create new title. Returns ID"""
+    name = normalize_title(name)
     with connect() as conn:
         row = conn.execute(
-            "SELECT id FROM titles WHERE name = ? AND medium_type = ?",
+            "SELECT id FROM titles WHERE name = ? COLLATE NOCASE AND medium_type = ?",
             (name, medium_type)
         ).fetchone()
         if row:
@@ -75,5 +77,4 @@ def get_or_create_title(name: str, medium_type: str) -> int:
             (name, medium_type)
         )
         title_id = cur.lastrowid
-        print("TITLE CREATED:", title_id)
         return title_id

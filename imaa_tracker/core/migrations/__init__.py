@@ -3,7 +3,7 @@ from datetime import datetime
 import logging
 
 from imaa_tracker.core import db
-from . import m001_goal_flags, m002_settings, m003_enum_checks
+from . import m001_goal_flags, m002_settings, m003_enum_checks, m004_title_uniqueness
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,7 @@ MIGRATIONS = [
     (1, "add goals.pinned and goals.show_on_log", m001_goal_flags.upgrade),
     (2, "add settings table", m002_settings.upgrade),
     (3, "add enum CHECK constraints to titles, immersion_sessions, and goals tables", m003_enum_checks.upgrade),
+    (4, "normalize title names and enforce uniqueness (on name, medium_type)", m004_title_uniqueness.upgrade),
 ]
 
 LATEST_VERSION = max(v for v, _, _ in MIGRATIONS)
