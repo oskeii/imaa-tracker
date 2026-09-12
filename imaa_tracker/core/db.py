@@ -14,7 +14,7 @@ from imaa_tracker.core.constants import ENUMS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DB_NAME = str(DB_PATH)
 
 
@@ -230,6 +230,7 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         
         notes		        TEXT,
         created_at	        TEXT NOT NULL DEFAULT (datetime('now')),
+        uuid                TEXT,
         
         FOREIGN KEY (title_id) REFERENCES titles(id) ON DELETE SET NULL        
     );
@@ -237,6 +238,8 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
     CREATE INDEX IF NOT EXISTS idx_sessions_title ON immersion_sessions(title_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_medium ON immersion_sessions(medium_type);
     CREATE INDEX IF NOT EXISTS idx_sessions_activity ON immersion_sessions(activity_type);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_uuid 
+        ON immersion_sessions(uuid);
     """
 
     cur.executescript(query_titles)

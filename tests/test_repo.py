@@ -393,6 +393,21 @@ class TestImmersionSessions:
         after_ids = [s["id"] for s in after]
         assert sid_to_del not in after_ids
 
+    def test_new_session__gets_uuid(self, test_db):
+        sid = repo.add_immersion_session("2026-01-01", "Test", "anime")
+        assert repo.get_immersion_session_by_id(sid)["uuid"] is not None
+
+    def test_session_uuids_are_unique(self, test_db):
+        ids = [repo.add_immersion_session("2026-01-01", "Test", "anime") for _ in range(3)]
+        uuids = {repo.get_immersion_session_by_id(i)["uuid"] for i in ids}
+        assert len(uuids) == 3
+
+    def test_uuid_is_immutable(self, test_db):
+        sid = repo.add_immersion_session("2026-01-01", "Test", "anime")
+        before = repo.get_immersion_session_by_id(sid)["uuid"]
+        repo.update_immersion_session(sid, uuid="fake")
+        assert repo.get_immersion_session_by_id(sid)["uuid"] == before
+
     class TestSessionEdits:
         """Updates and bulk operations on immersion_sessions"""
 

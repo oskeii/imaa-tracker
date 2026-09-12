@@ -286,3 +286,51 @@ class TestTitleUniqueness:
             titles = conn.execute("SELECT id FROM titles WHERE name = 'キノの旅'").fetchall()
             assert len(titles) == 1
             assert tuple(conn.execute("SELECT title_id, title_text FROM immersion_sessions").fetchone()) == (1, "キノの旅")
+
+
+class TestSessionUuid:
+    def test_every_row_gets_uuid(self, tmp_path):
+        v0_db = _make_v0_db(str(tmp_path / "old.db"))
+        with db.connect(v0_db) as conn:
+            for i in range(3):
+                conn.execute(f"INSERT INTO immersion_sessions (date, title_text, medium_type) "
+                             f"VALUES ('2026-01-0{i+1}', 'Test', 'anime')")
+
+        migrations.migrate(v0_db, backup=False)
+        with db.connect(v0_db) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM immersion_sessions WHERE uuid IS NULL"
+            ).fetchone()[0] == 0
+
+    def test_identical_rows_get_distinct_uuids(self, tmp_path):
+        """Bulk-imported rows share created_at, but the ordinal suffix should differentiate them."""
+        v0_db = _make_v0_db(str(tmp_path / "old.db"))
+        with db.connect(v0_db) as conn:
+            for _ in range(2):
+                conn.execute("""
+                    INSERT INTO immersion_sessions (date, title_text, medium_type, created_at)
+                    VALUES ('2026-01-01', 'Test Same', 'anime', '2026-01-01 10:00:00')
+                """)
+
+        migrations.migrate(v0_db, backup=False)
+        with db.connect(v0_db) as conn:
+            uuids = [r[0] for r in conn.execute("SELECT uuid FROM immersion_sessions")]
+            assert len(set(uuids)) == 2
+
+    def test_backfill_is_deterministic_across_databases(self, tmp_path):
+        """Two copies of one ancestor should derive identical UUIDs"""
+        def build_db(path):
+            v0_db = _make_v0_db(str(path))
+
+            with db.connect(v0_db) as conn:
+                for _ in range(2):
+                    conn.execute("""
+                        INSERT INTO immersion_sessions (date, title_text, medium_type, created_at)
+                        VALUES ('2026-01-01', 'Test Same', 'anime', '2026-01-01 10:00:00')
+                    """)
+
+            migrations.migrate(v0_db, backup=False)
+            with db.connect(v0_db) as conn:
+                return [r[0] for r in conn.execute("SELECT uuid FROM immersion_sessions")]
+
+        assert build_db(tmp_path / "a.db") == build_db(tmp_path / "b.db")
