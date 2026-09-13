@@ -45,6 +45,11 @@ def _schema_fingerprint(path: str):
     return out
 
 
+@pytest.fixture
+def v0_db(tmp_path):
+    yield _make_v0_db(str(tmp_path / "d.db"))
+
+
 def test_registry_matches_schema_version():
     """All version sources must agree"""
     assert migrations.LATEST_VERSION == db.SCHEMA_VERSION
@@ -266,12 +271,11 @@ def test_goal_log_survives_goals_rebuild(tmp_path):
 
 class TestTitleUniqueness:
 
-    def test_duplicates_merged_and_sessions_repointed(self, tmp_path):
+    def test_duplicates_merged_and_sessions_repointed(self, v0_db):
         """
         Two titles differing only by trailing space, merge into one,
         and sessions pointing at the dupe now point to the original
         """
-        v0_db = _make_v0_db(str(tmp_path / "old.db"))
         with db.connect(v0_db) as conn:
             conn.execute("INSERT INTO titles (id, name, medium_type) VALUES (1, 'キノの旅', 'light_novel')")
             conn.execute("INSERT INTO titles (id, name, medium_type) VALUES (2, 'キノの旅 ', 'light_novel')")
@@ -280,17 +284,46 @@ class TestTitleUniqueness:
             conn.execute("INSERT INTO immersion_sessions (date, title_id, title_text, medium_type) "
                          "VALUES ('2026-01-01', 2, 'キノの旅 ', 'light_novel')")
 
-        migrations.migrate(v0_db)
+        migrations.migrate(v0_db, backup=False)
 
         with db.connect(v0_db) as conn:
             titles = conn.execute("SELECT id FROM titles WHERE name = 'キノの旅'").fetchall()
             assert len(titles) == 1
             assert tuple(conn.execute("SELECT title_id, title_text FROM immersion_sessions").fetchone()) == (1, "キノの旅")
 
+    def test_ascii_case_variants_merged(self, v0_db):
+        with db.connect(v0_db) as conn:
+            conn.execute("INSERT INTO titles (name, medium_type) VALUES ('Frieren', 'manga')")
+            conn.execute("INSERT INTO titles (name, medium_type) VALUES ('frieren', 'manga')")
+        migrations.migrate(v0_db, backup=False)
+        with db.connect(v0_db) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM titles").fetchone()[0] == 1
+
+    def test_metadata_ported_from_deleted_duplicate(self, v0_db):
+        """Any metadata fields NOT FILLED in the original should be copied over from the duplicate."""
+        with db.connect(v0_db) as conn:
+            conn.execute("INSERT INTO titles (id, name, medium_type, tags, cover_image) "
+                         "VALUES (1, 'NANA', 'anime', 'favorites', 'path/to/img.png')")
+            conn.execute("INSERT INTO titles (id, name, medium_type, genre, cover_image) "
+                         "VALUES (2, 'NANA', 'anime', 'drama', 'path/to/new_img.png')")
+        migrations.migrate(v0_db, backup=False)
+        with db.connect(v0_db) as conn:
+            metadata = conn.execute("SELECT genre, tags, cover_image FROM titles WHERE id = 1").fetchone()
+            assert metadata[0] == "drama"
+            assert metadata[1] == "favorites"
+            assert metadata[2] == "path/to/img.png"
+
+    def test_same_name_different_medium_survive(self, v0_db):
+        with db.connect(v0_db) as conn:
+            conn.execute("INSERT INTO titles (name, medium_type) VALUES ('Re:Zero', 'anime')")
+            conn.execute("INSERT INTO titles (name, medium_type) VALUES ('Re:Zero', 'light_novel')")
+        migrations.migrate(v0_db, backup=False)
+        with db.connect(v0_db) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM titles").fetchone()[0] == 2
+
 
 class TestSessionUuid:
-    def test_every_row_gets_uuid(self, tmp_path):
-        v0_db = _make_v0_db(str(tmp_path / "old.db"))
+    def test_every_row_gets_uuid(self, v0_db):
         with db.connect(v0_db) as conn:
             for i in range(3):
                 conn.execute(f"INSERT INTO immersion_sessions (date, title_text, medium_type) "
@@ -302,9 +335,8 @@ class TestSessionUuid:
                 "SELECT COUNT(*) FROM immersion_sessions WHERE uuid IS NULL"
             ).fetchone()[0] == 0
 
-    def test_identical_rows_get_distinct_uuids(self, tmp_path):
+    def test_identical_rows_get_distinct_uuids(self, v0_db):
         """Bulk-imported rows share created_at, but the ordinal suffix should differentiate them."""
-        v0_db = _make_v0_db(str(tmp_path / "old.db"))
         with db.connect(v0_db) as conn:
             for _ in range(2):
                 conn.execute("""
