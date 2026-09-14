@@ -78,3 +78,18 @@ def get_or_create_title(name: str, medium_type: str) -> int:
         )
         title_id = cur.lastrowid
         return title_id
+
+
+def get_title_name(title_id: int) -> str:
+
+    with connect() as conn:
+        title_name = conn.execute("SELECT name FROM titles WHERE id = ?", (title_id,)).fetchone()[0]
+        return title_name
+
+
+def rename_title(title_id: int, new_name: str) -> None:
+    """Rename a title and resync every connected session's title_text"""
+    new_name = normalize_title(new_name)
+    with connect() as conn:
+        conn.execute("UPDATE titles SET name = ? WHERE id = ?", (new_name, title_id))
+        conn.execute("UPDATE immersion_sessions SET title_text = ? WHERE title_id = ?", (new_name, title_id))

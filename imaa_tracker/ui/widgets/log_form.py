@@ -303,9 +303,6 @@ class LogForm(QWidget):
             QMessageBox.warning(self, "Missing Field", "Please enter a duration for the session.")
             return None
 
-        # get/create title entry in database
-        title_id = repo.get_or_create_title(title_text, medium)
-
         # Parse URLS
         urls_text = self.urls_edit.toPlainText().strip()
         urls_json = None

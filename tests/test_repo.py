@@ -274,10 +274,29 @@ class TestImmersionSessions:
 
         sessions = repo.get_immersion_sessions()
         assert len(sessions) == 1
+        assert sessions[0]["title_id"] is not None
         assert sessions[0]["title_text"] == "Test Anime"
         assert sessions[0]["date"] == "2026-04-01"
         assert sessions[0]["duration_minutes"] is None
+
+    def test_add_session_minimal_unlinked_title(self, test_db):
+        """A session only needs date, title_text, medium_type, and activity_type.
+        (Duration may be forgotten and corrected later)"""
+        session_id = repo.add_immersion_session(
+            date_str="2026-04-01",
+            title_text="Test Anime",
+            medium_type="anime",
+            activity_type="listening",
+            link_title=False
+        )
+        assert session_id is not None
+
+        sessions = repo.get_immersion_sessions()
+        assert len(sessions) == 1
         assert sessions[0]["title_id"] is None
+        assert sessions[0]["title_text"] == "Test Anime"
+        assert sessions[0]["date"] == "2026-04-01"
+        assert sessions[0]["duration_minutes"] is None
 
     def test_add_session_full(self, test_db):
         """All fields should be stored and retrievable."""

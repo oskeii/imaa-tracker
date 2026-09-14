@@ -419,9 +419,6 @@ class EditSessionDialog(QDialog):
             QMessageBox.warning(self, "Invalid", "Title cannot be empty.")
             return
 
-        if "title_text" in changes.keys() or "medium_type" in changes.keys():
-            self._resolve_title_id(changes)
-
         try:
             new_date = changes.get("date")
             self.affected_dates = sorted(
@@ -440,14 +437,6 @@ class EditSessionDialog(QDialog):
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save: {e}")
-
-    def _resolve_title_id(self, changes: dict):
-        if self.is_mixed_medium:
-            return
-        title_text = changes.get("title_text", self.sessions[0]["title_text"])
-        medium = changes.get("medium_type", self.sessions[0]["medium_type"])
-        if title_text and medium:
-            changes["title_id"] = repo.get_or_create_title(title_text, medium)
 
     def _show_status(self, msg: str):
         """Show a message on main window's status bar."""

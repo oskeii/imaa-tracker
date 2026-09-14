@@ -5,6 +5,8 @@ from .titles import (
     search_titles,
     add_title,
     get_or_create_title,
+    get_title_name,
+    rename_title,
 )
 
 from .sessions import (
