@@ -37,6 +37,7 @@ def dataset(test_db):
     def add(d, medium, activity, mins, chars, title_id=None, **kw):
         return repo.add_immersion_session(
             d, "t", medium, activity,
+            link_title=(title_id is not None),
             title_id=title_id, duration_minutes=mins,
             character_count=chars, **kw
         )
