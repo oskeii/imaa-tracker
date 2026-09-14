@@ -313,7 +313,6 @@ class LogForm(QWidget):
 
         return {
             "date_str": self.date_edit.date().toString("yyyy-MM-dd"),
-            "title_id": title_id,
             "title_text": title_text,
             "medium_type": medium,
             "activity_type": self.activity_combo.currentData(),
