@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from contextlib import closing
 
@@ -8,6 +9,42 @@ from imaa_tracker.core import db
 from imaa_tracker.core import migrations
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+_COMMENT = re.compile(r"--[^\n]*")
+_CHECK_KW = re.compile(r"\bCHECK\b\s*\(", re.IGNORECASE)
+
+
+def _check_constraints(sql: str) -> list[str]:
+    """
+    Pull every CHECK (...) clause out of a CREATE statement, normalized and sorted.
+    PRAGMA table_info doesn't report CHECKs, so this is needed to make sure enum constraints are the same.
+    """
+    if not sql:
+        return []
+    sql = _COMMENT.sub("", sql)
+
+    out = []
+    for m in _CHECK_KW.finditer(sql):
+        i = m.end() - 1  # position of the opening paren
+        depth, j, in_str = 0, i, False
+        while j < len(sql):
+            ch = sql[j]
+            if in_str:
+                if ch == "'":
+                    if j + 1 < len(sql) and sql[j + 1] == "'":
+                        j += 1  # escaped quote inside a literal
+                    else:
+                        in_str = False
+            elif ch == "'":
+                in_str = True
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        out.append(" ".join(sql[i:j + 1].split()))  # collapse whitespace
+    return sorted(out)
 
 
 def _make_v0_db(path: str) -> str:
@@ -32,15 +69,26 @@ def _schema_fingerprint(path: str):
     ]
     out = {}
     for t in tables:
-        cols = {}
-        for row in conn.execute(f"PRAGMA table_info({t})"):
-            # name -> (type, notnull, default, is_pk)
-            cols[row[1]] = tuple(row[i] for i in range(2, 6))
-        idx = sorted(
-            r[1] for r in conn.execute(f"PRAGMA index_list({t})")
-            if not r[1].startswith("sqlite_autoindex")
-        )
-        out[t] = {"columns": cols, "indexes": idx}
+        cols = {
+            r[1]: tuple(r[2:6])  # name: (type, notnull, default, is_pk)
+            for r in conn.execute(f"PRAGMA table_info({t})")
+        }
+
+        idx = sorted({
+            r[1]: tuple(r[2:5])  # name: (unique, origin, partial)
+            for r in conn.execute(f"PRAGMA index_list({t})")
+            # if not r[1].startswith("sqlite_autoindex")
+        }.items())
+
+        create_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (t,)
+        ).fetchone()[0]
+
+        out[t] = {
+            "columns": cols,
+            "indexes": idx,
+            "checks": _check_constraints(create_sql),
+        }
     conn.close()
     return out
 
@@ -67,13 +115,18 @@ def test_fresh_matches_migrated(tmp_path):
 
     assert set(fp_migrated) == set(fp_fresh), (
         f"table mismatch: only in migrated={set(fp_migrated) - set(fp_fresh)}, "
-        f"only in fresh={set(fp_fresh)- set(fp_migrated)}"
+        f"only in fresh={set(fp_fresh) - set(fp_migrated)}"
     )
     for table in fp_fresh:
         assert fp_migrated[table]["columns"] == fp_fresh[table]["columns"], \
             f"column mismatch in {table}"
         assert fp_migrated[table]["indexes"] == fp_fresh[table]["indexes"], \
             f"index mismatch in {table}"
+        assert fp_migrated[table]["checks"] == fp_fresh[table]["checks"], (
+            f"CHECK constraint mismatch in {table}:\n"
+            f"\tmigrated:\t {fp_migrated[table]['checks']}\n"
+            f"\tfresh:\t {fp_fresh[table]['checks']}"
+        )
 
     assert db.get_schema_version(migrated) == db.get_schema_version(fresh)
 
@@ -266,6 +319,42 @@ def test_goal_log_survives_goals_rebuild(tmp_path):
         if not r[1].startswith("sqlite_autoindex")
     )
     assert idx == ["idx_goallog_date", "idx_goallog_goal", "idx_goallog_unique"]
+    conn.close()
+
+
+def test_reading_direction_constrained_after_migration(tmp_path):
+    path = _make_v0_db(str(tmp_path / "d.db"))
+    migrations.migrate(path, backup=False)
+    conn = sqlite3.connect(path)
+
+    base = ("INSERT INTO immersion_sessions "
+            "(date, title_text, medium_type, activity_type, reading_direction) "
+            "VALUES ('2026-09-01', 'x', 'manga', 'reading', ?)")
+
+    conn.execute(base, ("vertical",))
+    conn.execute(base, (None,))  # nullable
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(base, ("sideways",))
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(base, ("",))  # the import-script case
+    conn.close()
+
+
+def test_session_uuid_is_unique_after_migration(tmp_path):
+    path = _make_v0_db(str(tmp_path / "d.db"))
+    migrations.migrate(path, backup=False)
+    conn = sqlite3.connect(path)
+
+    base = ("INSERT INTO immersion_sessions "
+            "(date, title_text, medium_type, activity_type, uuid) "
+            "VALUES ('2026-09-01', 'x', 'manga', 'reading', ?)")
+
+    conn.execute(base, ("abc",))
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(base, ("abc",))
+    # SQLite exempts NULL from UNIQUE — two null uuids are legal.
+    conn.execute(base, (None,))
+    conn.execute(base, (None,))
     conn.close()
 
 

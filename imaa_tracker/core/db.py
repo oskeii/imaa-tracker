@@ -14,7 +14,7 @@ from imaa_tracker.core.constants import ENUMS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 DB_NAME = str(DB_PATH)
 
 
