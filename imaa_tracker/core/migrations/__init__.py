@@ -4,7 +4,8 @@ import logging
 
 from imaa_tracker.core import db
 from . import (m001_goal_flags, m002_settings, m003_enum_checks,
-               m004_title_uniqueness, m005_session_uuid, m006_rebuild_session_constraints)
+               m004_title_uniqueness, m005_session_uuid, m006_rebuild_session_constraints,
+               m007_session_attention_and_comprehension)
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,9 @@ MIGRATIONS = [
     (3, "add enum CHECK constraints to titles, immersion_sessions, and goals tables", m003_enum_checks.upgrade),
     (4, "normalize title names and enforce uniqueness (on name, medium_type)", m004_title_uniqueness.upgrade),
     (5, "add immersion_sessions.uuid", m005_session_uuid.upgrade),
-    (6, "add reading_direction CHECK; make idx_sessions_uuid UNIQUE", m006_rebuild_session_constraints.upgrade)
+    (6, "add reading_direction CHECK; make idx_sessions_uuid UNIQUE", m006_rebuild_session_constraints.upgrade),
+    (7, "add immersion_sessions.comprehension and immersion_sessions.is_passive",
+     m007_session_attention_and_comprehension.upgrade)
 ]
 
 LATEST_VERSION = max(v for v, _, _ in MIGRATIONS)

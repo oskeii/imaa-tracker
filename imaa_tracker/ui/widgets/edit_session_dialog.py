@@ -13,7 +13,8 @@ from .log_form import MEDIUM_DETAILS
 
 # Fields that are universal (always editable, even across mixed mediums)
 UNIVERSAL_FIELDS = {
-    "date", "activity_type", "duration_minutes", "notes"
+    "date", "activity_type", "duration_minutes", "notes",
+    "is_passive", "comprehension",
 }
 
 
@@ -136,6 +137,20 @@ class EditSessionDialog(QDialog):
         self.direction_combo.addItem("Horizontal", userData="horizontal")
         self.direction_combo.addItem("Vertical", userData="vertical")
         self._add_field("reading_direction", "Reading Direction:", self.direction_combo, form_layout)
+
+        self.attention_combo = QComboBox()
+        self.attention_combo.addItem("—", userData=None)
+        self.attention_combo.addItem("Active", userData=0)  # is_passive=False
+        self.attention_combo.addItem("Passive", userData=1)  # is_passive=True
+        self._add_field("is_passive", "Attention", self.attention_combo, form_layout)
+
+        self.comp_spin = QSpinBox()
+        self.comp_spin.setRange(0, 5)  # 0 -> None
+        self.comp_spin.setSpecialValueText("—")  # when value is 0
+        self.comp_spin.setToolTip("1 = mostly lost, \n2 = following the gist, "
+                                  "\n3 = comfortable with gaps, \n4 = smooth with occasional lookups, "
+                                  "\n5 = effortless")
+        self._add_field("comprehension", "Comprehension:", self.comp_spin, form_layout)
 
         # volume
         self.volume_edit = QLineEdit()
@@ -427,11 +442,11 @@ class EditSessionDialog(QDialog):
 
             if self.is_batch:
                 ids = [s["id"] for s in self.sessions]
-                print(f"ARGUMENTS: \n\t{ids} \n\t{changes}")
+                # print(f"ARGUMENTS: \n\t{ids} \n\t{changes}")
                 count = repo.bulk_update_immersion_sessions(ids, **changes)
                 self._show_status(f"Updated {count} sessions.")
             else:
-                print(f"ARGUMENTS: \n\t{self.sessions[0]} \n\t{changes}")
+                # print(f"ARGUMENTS: \n\t{self.sessions[0]} \n\t{changes}")
                 repo.update_immersion_session(self.sessions[0]["id"], **changes)
                 self._show_status("Session updated.")
             self.accept()

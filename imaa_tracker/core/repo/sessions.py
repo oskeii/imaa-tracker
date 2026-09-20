@@ -25,6 +25,8 @@ IMMERSION_SESSIONS_COLS = {
         "type": str,
         "enums": ["horizontal", "vertical"]
     },
+    "is_passive": {"type": int},
+    "comprehension": {"type": int},
     "volume": {"type": str}, "chapter": {"type": str}, "episode_name": {"type": str},
     "urls_json": {"type": str},
     "notes": {"type": str},

@@ -9,7 +9,7 @@ from imaa_tracker.core import repo
 from imaa_tracker.core.constants import ENUMS
 from imaa_tracker.core.utils.formatting import format_minutes
 
-# Column definitions: (header_text, dict_key, alignment  # !TODO!
+# Column definitions: (header_text, dict_key, alignment)  # !TODO!
 COLUMNS = [
     ("Date",        "date",             Qt.AlignmentFlag.AlignCenter),
     ("Title",       "title_text",       Qt.AlignmentFlag.AlignLeft),
@@ -17,8 +17,13 @@ COLUMNS = [
     ("Activity",    "activity_type",    Qt.AlignmentFlag.AlignCenter),
     ("Duration",    "duration_minutes", Qt.AlignmentFlag.AlignRight),
     ("Chars",       "character_count",  Qt.AlignmentFlag.AlignRight),
-    ("Pages",       "page_count",       Qt.AlignmentFlag.AlignRight),
+
+    ("Score", "comprehension", Qt.AlignmentFlag.AlignCenter),
+    ("Attention", "is_passive", Qt.AlignmentFlag.AlignCenter),
+
     ("Episodes",    "episode_count",    Qt.AlignmentFlag.AlignRight),
+    ("Pages",       "page_count",       Qt.AlignmentFlag.AlignRight),
+
     ("Vol.",        "volume",           Qt.AlignmentFlag.AlignCenter),
     ("Ch.",         "chapter",          Qt.AlignmentFlag.AlignCenter),
     ("Ep.",         "episode_name",          Qt.AlignmentFlag.AlignCenter),
@@ -57,6 +62,10 @@ class SessionTableModel(QAbstractTableModel):
                 return format_minutes(value)
             if key == "character_count":
                 return f"{value:,}"
+            if key == "is_passive":
+                return "P" if value == 1 \
+                    else "A" if value == 0 \
+                    else ""
             return str(value)
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
@@ -183,14 +192,14 @@ class SessionHistoryWidget(QWidget):
 
     def refresh(self):
         """Re-query the database with current filters and reload table."""
-        print("Refreshing session history table...")
-        print(f"""
-            CURRENT FILTERS:
-            start_date=\t{self.start_date.date().toString("yyyy-MM-dd")},
-            end_date=\t{self.end_date.date().toString("yyyy-MM-dd")},
-            medium_type=\t{self.medium_filter.currentData()},
-            activity_type=\t{self.activity_filter.currentData()}           
-        """)
+        # print("Refreshing session history table...")
+        # print(f"""
+        #     CURRENT FILTERS:
+        #     start_date=\t{self.start_date.date().toString("yyyy-MM-dd")},
+        #     end_date=\t{self.end_date.date().toString("yyyy-MM-dd")},
+        #     medium_type=\t{self.medium_filter.currentData()},
+        #     activity_type=\t{self.activity_filter.currentData()}
+        # """)
         sessions = repo.get_immersion_sessions(
             start_date=self.start_date.date().toString("yyyy-MM-dd"),
             end_date=self.end_date.date().toString("yyyy-MM-dd"),

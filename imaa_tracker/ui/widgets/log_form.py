@@ -144,7 +144,7 @@ class LogForm(QWidget):
         # character count
         self.char_spin = QSpinBox()
         self.char_spin.setRange(0, 5_000_000)
-        self.char_spin.setSpecialValueText("-")
+        self.char_spin.setSpecialValueText("—")
 
         self._char_label = QLabel("Characters:")
         form_layout.addRow(self._char_label, self.char_spin)
@@ -152,7 +152,7 @@ class LogForm(QWidget):
         # page count
         self.page_spin = QSpinBox()
         self.page_spin.setRange(0, 14400)  # 24h * 60m * 600pg
-        self.page_spin.setSpecialValueText("-")
+        self.page_spin.setSpecialValueText("—")
 
         self._page_label = QLabel("Pages:")
         form_layout.addRow(self._page_label, self.page_spin)
@@ -160,14 +160,14 @@ class LogForm(QWidget):
         # episode count
         self.episode_spin = QSpinBox()
         self.episode_spin.setRange(0, 200)
-        self.episode_spin.setSpecialValueText("-")
+        self.episode_spin.setSpecialValueText("—")
 
         self._episode_label = QLabel("Episodes:")
         form_layout.addRow(self._episode_label, self.episode_spin)
 
         # reading direction
         self.direction_combo = QComboBox()
-        self.direction_combo.addItem("-", userData=None)
+        self.direction_combo.addItem("—", userData=None)
         self.direction_combo.addItem("Horizontal", userData="horizontal")
         self.direction_combo.addItem("Vertical", userData="vertical")
 
@@ -175,6 +175,20 @@ class LogForm(QWidget):
         form_layout.addRow(self._dir_label, self.direction_combo)
 
         # Details
+        self.attention_combo = QComboBox()
+        self.attention_combo.addItem("—", userData=None)
+        self.attention_combo.addItem("Active", userData=0)  # is_passive=False
+        self.attention_combo.addItem("Passive", userData=1)  # is_passive=True
+        form_layout.addRow("Attention:", self.attention_combo)
+
+        self.comp_spin = QSpinBox()
+        self.comp_spin.setRange(0, 5)  # 0 -> None
+        self.comp_spin.setSpecialValueText("—")  # when value is 0
+        self.comp_spin.setToolTip("1 = mostly lost, \n2 = following the gist, "
+                                  "\n3 = comfortable with gaps, \n4 = smooth with occasional lookups, "
+                                  "\n5 = effortless")
+        form_layout.addRow("Comprehension:", self.comp_spin)
+
         self.volume_edit = QLineEdit()
         self.volume_edit.setPlaceholderText("e.g. Vol. 3, Season 2")
         self._vol_label = QLabel("Volume:")
@@ -320,7 +334,9 @@ class LogForm(QWidget):
             "character_count": self.char_spin.value() or None,
             "page_count": self.page_spin.value() or None,
             "episode_count": self.episode_spin.value() or None,
-            "reading_direction": self.direction_combo.currentData() or None,
+            "reading_direction": self.direction_combo.currentData(),
+            "is_passive": self.attention_combo.currentData(),
+            "comprehension": self.comp_spin.value() or None,
             "volume": self.volume_edit.text().strip() or None,
             "chapter": self.chapter_edit.text().strip() or None,
             "episode_name": self.ep_name_edit.text().strip() or None,
@@ -334,7 +350,7 @@ class LogForm(QWidget):
         if data is None:
             return
 
-        print(f"SUBMITTING NEW SESSION: {data}")
+        # print(f"SUBMITTING NEW SESSION: {data}")
         repo.add_immersion_session(**data)
         self.sig_session_logged.emit()
 
@@ -346,7 +362,7 @@ class LogForm(QWidget):
         if data is None:
             return
 
-        print(f"SUBMITTING NEW SESSION: {data}")
+        # print(f"SUBMITTING NEW SESSION: {data}")
         repo.add_immersion_session(**data)
         self.sig_session_logged.emit()
 
@@ -356,7 +372,7 @@ class LogForm(QWidget):
 
     def _clear_form(self, keep_date=False, keep_medium=False):
         """Reset form. Optionally preserve date and medium for consecutive logs."""
-        print("CLEARING FORM")
+        # print("CLEARING FORM")
         if not keep_date:
             self.date_edit.setDate(QDate.currentDate())
         if not keep_medium:
@@ -367,6 +383,8 @@ class LogForm(QWidget):
         self.page_spin.setValue(0)
         self.episode_spin.setValue(0)
         self.direction_combo.setCurrentIndex(0)
+        self.attention_combo.setCurrentIndex(0)
+        self.comp_spin.setValue(0)
         self.volume_edit.clear()
         self.chapter_edit.clear()
         self.ep_name_edit.clear()

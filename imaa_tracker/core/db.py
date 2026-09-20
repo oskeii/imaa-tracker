@@ -1,6 +1,6 @@
 """
 Database infra: connections, schema creation, backups.
-DATABASE SCHEMA VERSION 3
+DATABASE SCHEMA VERSION 7
 """
 import sqlite3
 from collections.abc import Iterator
@@ -14,7 +14,7 @@ from imaa_tracker.core.constants import ENUMS
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 DB_NAME = str(DB_PATH)
 
 
@@ -219,6 +219,10 @@ def _create_immersion_tables(cur: sqlite3.Cursor):
         episode_count       INTEGER,
         
         reading_direction   TEXT {enum_check("reading_direction", "READING_DIRECTIONS", nullable=True)},
+        is_passive          INTEGER CHECK (is_passive IN (0, 1)),
+        comprehension       INTEGER CHECK (comprehension BETWEEN 1 AND 5),
+        --      1 = mostly lost, 2 = following the gist, 3 = comfortable with gaps, 
+        --      4 = smooth with occasional lookups, 5 = effortless
         
         -- Details
         volume              TEXT,
